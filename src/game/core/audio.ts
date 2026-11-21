@@ -206,6 +206,8 @@ export type CombatSfxKind =
   | 'stance'
   | 'special'
   | 'beam'
+  | 'arrow'
+  | 'cavalry'
   | 'ko'
   | 'jump';
 
@@ -332,6 +334,33 @@ export function playCombatSfx(kind: CombatSfxKind, settings: GameSettings): void
     osc.frequency.exponentialRampToValueAtTime(kind === 'beam' ? 760 : 620, now + 0.18);
     osc.frequency.exponentialRampToValueAtTime(140, now + 0.42);
     gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.44);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.45);
+    return;
+  }
+
+  if (kind === 'arrow') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(720 * jitter, now);
+    osc.frequency.exponentialRampToValueAtTime(210, now + 0.11);
+    gain.gain.setValueAtTime(vol * 0.78, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.13);
+    return;
+  }
+
+  if (kind === 'cavalry') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(145, now);
+    osc.frequency.exponentialRampToValueAtTime(220, now + 0.16);
+    osc.frequency.exponentialRampToValueAtTime(88, now + 0.42);
+    gain.gain.setValueAtTime(vol * 0.95, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.44);
     osc.connect(gain);
     gain.connect(ctx.destination);

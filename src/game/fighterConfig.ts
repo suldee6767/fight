@@ -47,7 +47,8 @@ const FIGHTER_STAT_OVERRIDES: Record<string, Partial<FighterStats>> = {
   sukuna: { walkSpeed: 275, airDrift: 220, jump: 1030, scale: 1.45 },
   muzan: { walkSpeed: 285, airDrift: 235, jump: 1040, scale: 1.45 },
   madara: { walkSpeed: 265, airDrift: 215, jump: 1020, scale: 1.45 },
-  frieza: { walkSpeed: 295, airDrift: 250, jump: 1070, scale: 1.45 }
+  frieza: { walkSpeed: 295, airDrift: 250, jump: 1070, scale: 1.45 },
+  'genghis-khan': { walkSpeed: 275, airDrift: 215, jump: 1020, scale: 1.45 }
 };
 
 /**
@@ -235,6 +236,18 @@ const FIGHTER_COMBAT_OVERRIDES: Record<string, Partial<FighterCombat>> = {
     specialDamage: 76,
     specialKnockback: 400,
     specialHitstun: 540
+  },
+  'genghis-khan': {
+    maxHealth: 100,
+    highDamage: 8,
+    highKnockback: 130,
+    highHitstun: 250,
+    lowDamage: 16,
+    lowKnockback: 350,
+    lowHitstun: 450,
+    specialDamage: 78,
+    specialKnockback: 400,
+    specialHitstun: 560
   }
 };
 

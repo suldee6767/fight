@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 
+import { MONGOL_CAVALRY_ANIM_KEY, MONGOL_CAVALRY_TEXTURE_KEY } from './constants';
 import { FIGHTING_UI_ATLAS_TEXTURE_KEY } from './fightingUiAtlas';
 import type { StageAtmosphere } from './stageConfig';
 
@@ -756,6 +757,257 @@ export function spawnTengaiMeteor(
   });
 }
 
+export { MONGOL_CAVALRY_ANIM_KEY, MONGOL_CAVALRY_TEXTURE_KEY };
+
+/**
+ * Genghis Khan Heavy Attack: summons 5 rows x 10 columns (50 riders) of mini
+ * sword-wielding Mongol cavalry (~1/4 height of Genghis Khan) galloping forward
+ * to strike the enemy.
+ */
+export function spawnCavalryCharge(
+  scene: Phaser.Scene,
+  originX: number,
+  groundY: number,
+  facing: 1 | -1,
+  onWaveHit: (frontX: number, centerY: number) => void
+): void {
+  const rows = 5;
+  const cols = 10;
+  const travelDistance = 620;
+  const durationMs = 780;
+  const hasSprite = scene.textures.exists(MONGOL_CAVALRY_TEXTURE_KEY);
+  const riders: Phaser.GameObjects.GameObject[] = [];
+
+  for (let r = 0; r < rows; r += 1) {
+    const depthOffsetY = -r * 11;
+    const rowScale = 0.38 - r * 0.017;
+    for (let c = 0; c < cols; c += 1) {
+      const startX = originX - facing * (12 + c * 22 + (r % 2) * 8);
+      const riderY = groundY + depthOffsetY - 6;
+
+      let rider: Phaser.GameObjects.GameObject;
+      if (hasSprite) {
+        const spr = scene.add
+          .sprite(startX, riderY, MONGOL_CAVALRY_TEXTURE_KEY)
+          .setOrigin(0.5, 1)
+          .setScale(rowScale)
+          .setFlipX(facing === 1)
+          .setDepth(VFX_DEPTH - 2 + (rows - r));
+        if (scene.anims.exists(MONGOL_CAVALRY_ANIM_KEY)) {
+          spr.play({ key: MONGOL_CAVALRY_ANIM_KEY, startFrame: (r + c) % 3 });
+        }
+        rider = spr;
+      } else {
+        const box = scene.add
+          .rectangle(startX, riderY - 14, 24, 22, 0xb45309, 0.95)
+          .setStrokeStyle(1, 0xfef3c7, 0.85)
+          .setDepth(VFX_DEPTH - 2 + (rows - r));
+        rider = box;
+      }
+
+      riders.push(rider);
+
+      scene.tweens.add({
+        targets: rider,
+        x: startX + facing * travelDistance,
+        y: riderY - (c % 2) * 3,
+        duration: durationMs + c * 14,
+        ease: 'Cubic.Out',
+        onComplete: () => {
+          rider.destroy();
+        }
+      });
+
+      if (c % 3 === 0 && r % 2 === 0) {
+        const slash = scene.add
+          .arc(startX + facing * 14, riderY - 18, 12, -55, 55, false, 0xfef08a, 0)
+          .setStrokeStyle(2, 0xfef3c7, 0.9)
+          .setScale(facing, 1)
+          .setDepth(VFX_DEPTH + 4);
+        scene.tweens.add({
+          targets: slash,
+          x: startX + facing * (travelDistance * 0.85),
+          alpha: 0,
+          duration: 540,
+          delay: 60 + c * 16,
+          onComplete: () => slash.destroy()
+        });
+      }
+    }
+  }
+
+  for (let d = 0; d < 8; d += 1) {
+    const dust = scene.add
+      .circle(originX + facing * d * 24, groundY - 6, 8 + (d % 3) * 4, 0xd6d3d1, 0.42)
+      .setDepth(VFX_DEPTH - 3);
+    scene.tweens.add({
+      targets: dust,
+      x: dust.x + facing * 180,
+      y: dust.y - 18,
+      scale: 2.1,
+      alpha: 0,
+      duration: 520,
+      delay: d * 45,
+      onComplete: () => dust.destroy()
+    });
+  }
+
+  const checkCount = 7;
+  for (let i = 0; i < checkCount; i += 1) {
+    scene.time.delayedCall(90 + i * 75, () => {
+      const progress = (i + 1) / checkCount;
+      onWaveHit(originX + facing * (travelDistance * progress * 0.78), groundY - 36);
+    });
+  }
+
+  scene.cameras.main.shake(180, 0.008);
+}
+
+/**
+ * Genghis Khan Special Attack:
+ * 1) 100 stacked-but-lookable rows of mini Mongol cavalry mass behind/around
+ *    where Genghis Khan is standing, receding upward in tight perspective steps.
+ * 2) Arrows launch upward into the sky around Genghis Khan's bow/head.
+ * 3) A dense volley of arrows rains back down onto the target area.
+ */
+export function spawnKhanHordeVolley(
+  scene: Phaser.Scene,
+  khanX: number,
+  groundY: number,
+  facing: 1 | -1,
+  targetX: number,
+  onImpact: () => void
+): void {
+  const hasSprite = scene.textures.exists(MONGOL_CAVALRY_TEXTURE_KEY);
+  const rows = 100;
+  const colsPerRow = 4;
+  const hordeNodes: Phaser.GameObjects.GameObject[] = [];
+
+  for (let r = 0; r < rows; r += 1) {
+    const rowY = groundY - 4 - r * 3.1;
+    const scale = Math.max(0.11, 0.3 - r * 0.0018);
+    const alpha = Math.max(0.28, 0.96 - r * 0.0055);
+    const colSpacing = Math.max(14, 34 - r * 0.16);
+    const rowBackOffset = facing * (18 + r * 3.8);
+
+    for (let c = 0; c < colsPerRow; c += 1) {
+      const jitter = ((r * 7 + c * 13) % 9) - 4;
+      const rx = khanX - rowBackOffset + (c - (colsPerRow - 1) / 2) * colSpacing * 1.45 + jitter;
+      const depth = VFX_DEPTH - 5 + Math.floor((rows - r) / 5);
+
+      let node: Phaser.GameObjects.GameObject;
+      if (hasSprite) {
+        const spr = scene.add
+          .sprite(rx, rowY, MONGOL_CAVALRY_TEXTURE_KEY)
+          .setOrigin(0.5, 1)
+          .setScale(scale)
+          .setFlipX(facing === 1)
+          .setAlpha(0)
+          .setDepth(depth);
+        if (scene.anims.exists(MONGOL_CAVALRY_ANIM_KEY)) {
+          spr.play({ key: MONGOL_CAVALRY_ANIM_KEY, startFrame: (r + c) % 3 });
+        }
+        node = spr;
+      } else {
+        node = scene.add
+          .rectangle(rx, rowY - 6, 12 * (scale / 0.25), 10 * (scale / 0.25), 0xd97706, 0)
+          .setDepth(depth);
+      }
+
+      hordeNodes.push(node);
+
+      scene.tweens.add({
+        targets: node,
+        alpha,
+        x: rx + facing * 26,
+        duration: 240,
+        delay: Math.min(280, r * 2.5),
+        ease: 'Cubic.Out'
+      });
+    }
+  }
+
+  const skyOriginY = groundY - 165;
+  for (let i = 0; i < 36; i += 1) {
+    const startX = khanX + facing * (12 + ((i % 5) - 2) * 14);
+    const startY = skyOriginY - (i % 4) * 10;
+    const arrow = createSkyArrowContainer(scene, startX, startY, -Math.PI / 2 + facing * 0.22, VFX_DEPTH + 6);
+    arrow.setAlpha(0);
+
+    scene.tweens.add({
+      targets: arrow,
+      x: startX + facing * (80 + (i % 7) * 28),
+      y: startY - 420 - (i % 5) * 45,
+      alpha: 1,
+      duration: 360,
+      delay: 80 + i * 10,
+      ease: 'Cubic.Out',
+      onComplete: () => arrow.destroy()
+    });
+  }
+
+  const dropWaves = [520, 680, 840];
+  dropWaves.forEach((waveDelay, waveIdx) => {
+    for (let k = 0; k < 22; k += 1) {
+      const spreadX = targetX + (k - 10.5) * 20 + ((waveIdx * 17 + k * 7) % 15) - 7;
+      const startY = -50 - (k % 5) * 38;
+      const rainArrow = createSkyArrowContainer(
+        scene,
+        spreadX - facing * 45,
+        startY,
+        Math.PI / 2 - facing * 0.14,
+        VFX_DEPTH + 8
+      );
+
+      scene.tweens.add({
+        targets: rainArrow,
+        x: spreadX,
+        y: groundY - 12 - (k % 3) * 10,
+        duration: 290,
+        delay: waveDelay + (k % 6) * 18,
+        ease: 'Cubic.In',
+        onComplete: () => {
+          spawnImpactFlash(scene, spreadX, groundY - 22, k % 3 === 0 ? 'gold' : 'red', 18);
+          rainArrow.destroy();
+        }
+      });
+    }
+
+    scene.time.delayedCall(waveDelay + 260, () => {
+      scene.cameras.main.shake(170, 0.011);
+      if (waveIdx === 1) {
+        onImpact();
+      }
+    });
+  });
+
+  scene.time.delayedCall(1280, () => {
+    scene.tweens.add({
+      targets: hordeNodes,
+      alpha: 0,
+      duration: 260,
+      onComplete: () => {
+        hordeNodes.forEach((n) => n.destroy());
+      }
+    });
+  });
+}
+
+function createSkyArrowContainer(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  rotationRad: number,
+  depth: number
+): Phaser.GameObjects.Container {
+  const c = scene.add.container(x, y).setRotation(rotationRad).setDepth(depth);
+  const shaft = scene.add.rectangle(0, 0, 44, 4, 0xfef3c7, 1);
+  const tail = scene.add.rectangle(-20, 0, 10, 7, 0xdc2626, 0.95);
+  const tip = scene.add.triangle(24, 0, -6, -5, 8, 0, -6, 5, 0xfacc15, 1);
+  c.add([shaft, tail, tip]);
+  return c;
+}
+
 interface AmbientParticle {
   node: Phaser.GameObjects.Shape;
   vx: number;
@@ -786,7 +1038,7 @@ export class StageAtmosphereEffect {
     this.height = height;
     this.atmosphere = atmosphere;
 
-    const count = 26;
+    const count = Math.min(96, Math.max(26, Math.round(22 * (worldWidth / 1500))));
     for (let i = 0; i < count; i += 1) {
       const x = Phaser.Math.FloatBetween(0, worldWidth);
       const y = Phaser.Math.FloatBetween(0, height * 0.92);

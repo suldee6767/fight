@@ -3,13 +3,14 @@ import * as Phaser from 'phaser';
 import { AUDIO_KEYS, playAudioCue } from '../game/core/audio';
 import { GAME_TAGLINE, GAME_TITLE } from '../game/constants';
 import { TITLE_ARENA_BG_KEY } from '../game/stageConfig';
-import { addLeftTitleScrim, createTextButton, type TextButton } from '../game/ui';
+import { addLeftTitleScrim, createGlassPanel, createTextButton, type TextButton } from '../game/ui';
 import { SCENE_KEYS } from '../game/types';
 import { StageAtmosphereEffect } from '../game/vfx';
 import { BaseScene } from './BaseScene';
 
 interface MenuOption {
   label: string;
+  accent?: number;
   action: () => void;
 }
 
@@ -44,13 +45,13 @@ export class MainMenuScene extends BaseScene {
 
     this.atmosphere = new StageAtmosphereEffect(this, width, height, 'cursed');
 
-    const leftX = 96;
-    this.add.rectangle(leftX, 118, 84, 5, 0xfacc15, 1).setOrigin(0, 0.5).setDepth(5);
+    const leftX = 88;
+    this.add.rectangle(leftX, 88, 96, 5, 0xfacc15, 1).setOrigin(0, 0.5).setDepth(5);
     this.add
-      .text(leftX, 134, GAME_TITLE, {
+      .text(leftX, 104, GAME_TITLE, {
         color: '#f8fafc',
         fontFamily: '"Barlow Condensed", sans-serif',
-        fontSize: '72px',
+        fontSize: '74px',
         fontStyle: 'bold',
         stroke: '#020617',
         strokeThickness: 8
@@ -59,7 +60,7 @@ export class MainMenuScene extends BaseScene {
       .setDepth(5);
 
     this.add
-      .text(leftX + 2, 214, GAME_TAGLINE.toUpperCase(), {
+      .text(leftX + 2, 186, `${GAME_TAGLINE.toUpperCase()}  •  15 FIGHTERS`, {
         color: '#38bdf8',
         fontFamily: '"Barlow Condensed", sans-serif',
         fontSize: '24px',
@@ -68,7 +69,18 @@ export class MainMenuScene extends BaseScene {
       .setOrigin(0, 0)
       .setDepth(5);
 
+    createGlassPanel(this, {
+      x: 288,
+      y: 428,
+      width: 416,
+      height: 324,
+      borderColor: 0x334155,
+      accentTopColor: 0xfacc15,
+      depth: 4
+    });
+
     this.renderMenu();
+    this.buildControlsCard(width);
 
     const keyUp = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     const keyDown = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
@@ -99,6 +111,54 @@ export class MainMenuScene extends BaseScene {
     this.atmosphere?.update(delta / 1000);
   }
 
+  private buildControlsCard(width: number): void {
+    const cardW = 356;
+    const cardH = 192;
+    const cardX = width - cardW / 2 - 48;
+    const cardY = 564;
+
+    createGlassPanel(this, {
+      x: cardX,
+      y: cardY,
+      width: cardW,
+      height: cardH,
+      fillAlpha: 0.88,
+      borderColor: 0x38bdf8,
+      accentTopColor: 0x38bdf8,
+      depth: 4
+    });
+
+    const left = cardX - cardW / 2 + 22;
+    this.add
+      .text(left, cardY - 68, 'ARENA COMBAT GUIDE', {
+        color: '#facc15',
+        fontFamily: '"Barlow Condensed", sans-serif',
+        fontSize: '20px',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(6);
+
+    const lines = [
+      'Move / Jump:  WASD  (P2: Arrows)',
+      'Light / Heavy:  F / G  (P2: , / .)',
+      'Block & Parry:  Hold Back or C (P2: /)',
+      'Offense / Defense Stance:  Q  (P2: K)',
+      'Special Finisher:  V  (P2: L) at 100%'
+    ];
+
+    lines.forEach((line, index) => {
+      this.add
+        .text(left, cardY - 36 + index * 26, line, {
+          color: '#e2e8f0',
+          fontFamily: '"Plus Jakarta Sans", sans-serif',
+          fontSize: '13px'
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(6);
+    });
+  }
+
   private moveSelection(direction: number): void {
     const next = Phaser.Math.Wrap(this.selectedIndex + direction, 0, this.buttons.length);
     this.setSelection(next);
@@ -115,9 +175,21 @@ export class MainMenuScene extends BaseScene {
     this.clearButtons();
 
     this.options = [
-      { label: 'Play', action: () => this.scene.start(SCENE_KEYS.ModeSelect) },
+      { label: 'Play  (Mode → Stage → Fighters)', accent: 0xfacc15, action: () => this.scene.start(SCENE_KEYS.ModeSelect) },
       {
-        label: 'Quick Match (Gojo vs Sukuna)',
+        label: 'Quick Match: Genghis Khan vs Gojo',
+        accent: 0xf59e0b,
+        action: () =>
+          this.scene.start(SCENE_KEYS.Match, {
+            mode: '1vcpu',
+            stageId: 'final-valley',
+            p1CharacterId: 'genghis-khan',
+            p2CharacterId: 'gojo'
+          })
+      },
+      {
+        label: 'Quick Match: Gojo vs Sukuna',
+        accent: 0x38bdf8,
         action: () =>
           this.scene.start(SCENE_KEYS.Match, {
             mode: '1vcpu',
@@ -126,19 +198,20 @@ export class MainMenuScene extends BaseScene {
             p2CharacterId: 'sukuna'
           })
       },
-      { label: 'Settings', action: () => this.scene.start(SCENE_KEYS.Settings) }
+      { label: 'Settings', accent: 0x94a3b8, action: () => this.scene.start(SCENE_KEYS.Settings) }
     ];
 
-    const startY = 312;
-    const spacing = 74;
+    const startY = 314;
+    const spacing = 70;
 
     this.options.forEach((option, optionIndex) => {
       const button = createTextButton(this, {
-        x: 284,
+        x: 288,
         y: startY + optionIndex * spacing,
         width: 376,
-        height: 58,
+        height: 54,
         label: option.label,
+        accentColor: option.accent,
         onClick: () => this.confirmOption(option),
         onHover: () => this.setSelection(optionIndex)
       });

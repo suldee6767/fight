@@ -64,7 +64,7 @@ export class SplashScene extends BaseScene {
       .setDepth(5);
 
     this.add
-      .text(leftX + 2, midY + 34, '13 Anime & Street Fighters  •  8 Panoramic Stages', {
+      .text(leftX + 2, midY + 34, '15 Fighters  •  8 Panoramic Stages  •  Offense / Defense Stances', {
         color: '#cbd5e1',
         fontFamily: '"Plus Jakarta Sans", sans-serif',
         fontSize: '16px'
@@ -72,26 +72,29 @@ export class SplashScene extends BaseScene {
       .setOrigin(0, 0)
       .setDepth(5);
 
+    const ctaPanel = this.add
+      .rectangle(leftX + 220, midY + 130, 440, 52, 0x091020, 0.88)
+      .setStrokeStyle(2, 0xfacc15, 0.9)
+      .setDepth(4);
+
     const prompt = this.add
       .text(
-        leftX + 2,
-        midY + 112,
+        leftX + 220,
+        midY + 130,
         this.app.isMobileShell ? 'TAP ANYWHERE TO ENTER ARENA' : 'PRESS ANY KEY OR CLICK TO ENTER',
         {
           color: '#facc15',
           fontFamily: '"Barlow Condensed", sans-serif',
-          fontSize: '24px',
-          fontStyle: 'bold',
-          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-          padding: { x: 18, y: 10 }
+          fontSize: '22px',
+          fontStyle: 'bold'
         }
       )
-      .setOrigin(0, 0)
+      .setOrigin(0.5)
       .setDepth(5);
 
     this.tweens.add({
-      targets: prompt,
-      alpha: 0.55,
+      targets: [prompt, ctaPanel],
+      alpha: 0.62,
       duration: 750,
       yoyo: true,
       repeat: -1,

@@ -58,13 +58,13 @@ export class LevelSelectScene extends BaseScene {
 
   private buildCards(): void {
     const { centerX } = this.cameras.main;
-    const cardWidth = 278;
-    const cardHeight = 204;
-    const gapX = 24;
-    const gapY = 20;
+    const cardWidth = 286;
+    const cardHeight = 212;
+    const gapX = 20;
+    const gapY = 18;
     const totalWidth = cardWidth * COLS + gapX * (COLS - 1);
     const startX = centerX - totalWidth / 2 + cardWidth / 2;
-    const startY = 232;
+    const startY = 234;
 
     STAGE_DEFINITIONS.forEach((stage, index) => {
       const col = index % COLS;
@@ -76,7 +76,9 @@ export class LevelSelectScene extends BaseScene {
         width: cardWidth,
         height: cardHeight,
         title: stage.label,
-        subtitle: stage.subtitle,
+        metaText: `${stage.subtitle}  ·  ${stage.atmosphere}`,
+        metaColor: `#${stage.accentColor.toString(16).padStart(6, '0')}`,
+        topAccentColor: stage.accentColor,
         texture: this.textures.exists(stage.key) ? stage.key : undefined,
         imageOffsetY: -22,
         onHover: () => this.setSelection(index),

@@ -162,7 +162,8 @@ export type OrbColor =
   | 'crimson'
   | 'fire'
   | 'magenta'
-  | 'cyan';
+  | 'cyan'
+  | 'arrow';
 
 /**
  * Optional per-fighter gameplay modifiers for rapid rushdown combos, meter
@@ -209,6 +210,12 @@ export interface FighterTraits {
   rushSpecial?: { color: 'cyan' | 'fire' | 'crimson'; damageFraction: number; lifestealFraction?: number };
   /** Special hurls a massive Supernova fireball downward toward the opponent. */
   angledOrbSpecial?: { color: 'fire' | 'purple'; damageFraction: number };
+  /** Light attack shoots a ranged projectile (e.g. Genghis Khan bow arrow). */
+  projectileLight?: { color: OrbColor };
+  /** Heavy attack summons a 5x10 formation of mini sword-wielding cavalry. */
+  cavalryHeavy?: boolean;
+  /** Special summons 100 stacked rows of mini cavalry and rains sky bow arrows onto the foe. */
+  khanHordeSpecial?: { damageFraction: number };
 }
 
 /** A resolved single-attack profile derived from {@link FighterCombat}. */
@@ -229,7 +236,7 @@ export interface AttackProfile {
   /** When true, knockback pulls the defender toward the attacker (Lapse Blue). */
   pullTowardAttacker?: boolean;
   /** Special K.O. finisher visual effect. */
-  koVisual?: 'prison-realm' | 'hinokami-slash' | 'shrine-cleave' | 'meteor-crush';
+  koVisual?: 'prison-realm' | 'hinokami-slash' | 'shrine-cleave' | 'meteor-crush' | 'arrow-rain';
 }
 
 export interface FighterBoundsVisibility {

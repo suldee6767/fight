@@ -20,6 +20,8 @@ export interface MyFighter {
   id: string;
   name: string;
   flip?: boolean;
+  /** Sheet names whose pose frames appear right-to-left / end-to-start and should be reversed. */
+  reverseSheets?: string[];
   /** Only if auto-detect counts the poses wrong: { kick: 4 } */
   frames?: Record<string, number>;
   /** Optional rapid rushdown & special traits. */
@@ -237,6 +239,35 @@ export const MY_FIGHTERS: MyFighter[] = [
       angledOrbSpecial: { color: 'fire', damageFraction: 0.76 },
       specialMaxHealthFraction: 0.76
     }
+  },
+  {
+    id: 'genghis-khan',
+    name: 'Genghis Khan',
+    flip: true,
+    frames: {
+      idle: 3,
+      walk: 4,
+      punch: 3,
+      kick: 3,
+      hit: 3,
+      ko: 3,
+      special: 3
+    },
+    traits: {
+      actionFrameRates: {
+        idle: 6,
+        'walk-forward': 10,
+        'walk-backward': 10,
+        'light-punch': 16,
+        'heavy-kick': 12,
+        'special-charge': 10,
+        special: 12
+      },
+      projectileLight: { color: 'arrow' },
+      cavalryHeavy: true,
+      khanHordeSpecial: { damageFraction: 0.78 },
+      specialMaxHealthFraction: 0.78
+    }
   }
 ];
 
@@ -361,6 +392,17 @@ export const FIGHTER_ROSTER_META: Record<string, FighterRosterMeta> = {
     offenseSkill: 'Death Barrage (Fast ranged pressure)',
     defenseSkill: 'Golden Guard (-28% dmg mitigation)',
     accentColor: 0xd946ef
+  },
+  'genghis-khan': {
+    id: 'genghis-khan',
+    faction: 'villain',
+    series: 'Great Khan',
+    rank: 'golden',
+    specialName: 'Sky Volley & 100-Row Horde',
+    kitSummary: 'Bow arrows · 5x10 Mini Cavalry · 100-Row Sky Volley',
+    offenseSkill: 'Mongol Conquest (5x10 Cavalry & Sky Volley)',
+    defenseSkill: 'Steppe Guard (240ms Parry + Arrow Volley)',
+    accentColor: 0xd97706
   },
   'red-brawler': {
     id: 'red-brawler',

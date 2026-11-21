@@ -26,16 +26,16 @@ const TIMER_DISP_H = 94;
 const PIP_DISP_H = 20;
 
 // Special-meter bar (drawn below the win pips).
-const METER_DISP_W = 280;
+const METER_DISP_W = 312;
 const METER_DISP_H = 12;
 const METER_TRACK_COLOR = 0x0b1120;
 const METER_FILL_COLOR = 0x38bdf8;
 const METER_READY_COLOR = 0xfacc15;
 
 // Tactical Stance + Guard bar dimensions (below special meter).
-const STANCE_PILL_W = 86;
+const STANCE_PILL_W = 88;
 const STANCE_PILL_H = 19;
-const GUARD_BAR_W = 132;
+const GUARD_BAR_W = 136;
 const GUARD_BAR_H = 10;
 
 // Health colour thresholds (fraction of max).
@@ -96,6 +96,8 @@ export class MatchHud {
 
   private p1Meter!: Phaser.GameObjects.Rectangle;
   private p2Meter!: Phaser.GameObjects.Rectangle;
+  private p1MeterReadyTxt!: Phaser.GameObjects.Text;
+  private p2MeterReadyTxt!: Phaser.GameObjects.Text;
   private p1MeterGeom!: MeterGeometry;
   private p2MeterGeom!: MeterGeometry;
   private p1MeterReady = false;
@@ -109,12 +111,20 @@ export class MatchHud {
   private p2StanceTxt!: Phaser.GameObjects.Text;
   private p1GuardFill!: Phaser.GameObjects.Rectangle;
   private p2GuardFill!: Phaser.GameObjects.Rectangle;
+  private p1GuardLeftX = 0;
+  private p2GuardLeftX = 0;
   private p1GuardLabel!: Phaser.GameObjects.Text;
   private p2GuardLabel!: Phaser.GameObjects.Text;
   private p1LiveRankBg!: Phaser.GameObjects.Rectangle;
   private p1LiveRankTxt!: Phaser.GameObjects.Text;
   private p2LiveRankBg!: Phaser.GameObjects.Rectangle;
   private p2LiveRankTxt!: Phaser.GameObjects.Text;
+
+  private minimapTrackLeft = 0;
+  private minimapTrackWidth = 220;
+  private minimapViewBox!: Phaser.GameObjects.Rectangle;
+  private minimapP1Dot!: Phaser.GameObjects.Arc;
+  private minimapP2Dot!: Phaser.GameObjects.Arc;
 
   private p1CurrentStance: CombatStance | null = null;
   private p2CurrentStance: CombatStance | null = null;
@@ -143,6 +153,13 @@ export class MatchHud {
   /** Constructs every HUD element into the root container. */
   private build(): void {
     const camWidth = this.scene.cameras.main.width;
+
+    // Frosted dark glass top HUD scrim so bars, pips, stances, and rank pills stay crisp on bright stages.
+    const hudScrim = this.scene.add
+      .rectangle(camWidth / 2, 114, camWidth, 228, 0x050a18, 0.52)
+      .setStrokeStyle(1, 0x1e293b, 0.72);
+    const hudTopLine = this.scene.add.rectangle(camWidth / 2, 1, camWidth, 2, 0xfacc15, 0.65);
+    this.root.add([hudScrim, hudTopLine]);
 
     // --- Player 1 (left) ---
     const p1HealthX = PAD + PORTRAIT_DISP + 6;
@@ -202,8 +219,9 @@ export class MatchHud {
       .setVisible(false);
     this.root.add(this.p2ComboText);
 
-    // --- Timer (centre) ---
+    // --- Timer & 5x Arena Minimap (centre) ---
     this.buildTimer(camWidth / 2);
+    this.buildArenaMinimap(camWidth / 2, TOP + TIMER_DISP_H + 26);
 
     this.applyHealth(1, 1);
     this.update(1);
@@ -214,6 +232,7 @@ export class MatchHud {
     this.setGuard('right', 1, false);
     this.setLiveRank('left', 'blue', 0);
     this.setLiveRank('right', 'blue', 0);
+    this.setArenaPositions(0.45, 0.55, 0.4, 0.6);
     this.updateWins(0, 0);
   }
 
@@ -235,25 +254,25 @@ export class MatchHud {
       })
       .setOrigin(0.5);
 
-    const guardLabelX = isLeft ? edgeX + STANCE_PILL_W + 10 : edgeX - STANCE_PILL_W - 10;
+    const guardLabelX = isLeft ? edgeX + STANCE_PILL_W + 14 : edgeX - STANCE_PILL_W - 14;
     const guardLabel = this.scene.add
       .text(guardLabelX, stanceCy, 'GUARD', {
-        color: '#94a3b8',
+        color: '#cbd5e1',
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: '10px',
         fontStyle: 'bold'
       })
       .setOrigin(isLeft ? 0 : 1, 0.5);
 
-    const guardBarEdgeX = isLeft ? edgeX + METER_DISP_W - GUARD_BAR_W : edgeX - METER_DISP_W + GUARD_BAR_W;
+    const guardBarLeftX = isLeft ? edgeX + METER_DISP_W - GUARD_BAR_W : edgeX - METER_DISP_W;
     const guardBarY = stanceCy - GUARD_BAR_H / 2;
     const guardTrack = this.scene.add
-      .rectangle(guardBarEdgeX, guardBarY, GUARD_BAR_W, GUARD_BAR_H, 0x0b1120, 0.9)
-      .setOrigin(isLeft ? 0 : 1, 0)
+      .rectangle(guardBarLeftX, guardBarY, GUARD_BAR_W, GUARD_BAR_H, 0x0b1120, 0.92)
+      .setOrigin(0, 0)
       .setStrokeStyle(1, 0x334155, 1);
     const guardFill = this.scene.add
-      .rectangle(guardBarEdgeX, guardBarY, GUARD_BAR_W, GUARD_BAR_H, 0x38bdf8, 1)
-      .setOrigin(isLeft ? 0 : 1, 0);
+      .rectangle(guardBarLeftX, guardBarY, GUARD_BAR_W, GUARD_BAR_H, 0x38bdf8, 1)
+      .setOrigin(0, 0);
 
     this.root.add([stanceBg, stanceTxt, guardLabel, guardTrack, guardFill]);
 
@@ -262,11 +281,13 @@ export class MatchHud {
       this.p1StanceTxt = stanceTxt;
       this.p1GuardLabel = guardLabel;
       this.p1GuardFill = guardFill;
+      this.p1GuardLeftX = guardBarLeftX;
     } else {
       this.p2StanceBg = stanceBg;
       this.p2StanceTxt = stanceTxt;
       this.p2GuardLabel = guardLabel;
       this.p2GuardFill = guardFill;
+      this.p2GuardLeftX = guardBarLeftX;
     }
   }
 
@@ -308,25 +329,40 @@ export class MatchHud {
    * @param topY - The bar's top y in screen pixels.
    */
   private buildMeter(side: 'left' | 'right', edgeX: number, topY: number): void {
-    const originX: 0 | 1 = side === 'left' ? 0 : 1;
-    const geometry: MeterGeometry = { anchorX: edgeX, topY, width: METER_DISP_W, height: METER_DISP_H, originX };
+    const isLeft = side === 'left';
+    const leftX = isLeft ? edgeX : edgeX - METER_DISP_W;
+    const originX: 0 | 1 = isLeft ? 0 : 1;
+    const geometry: MeterGeometry = { anchorX: leftX, topY, width: METER_DISP_W, height: METER_DISP_H, originX };
 
     const track = this.scene.add
-      .rectangle(edgeX, topY, METER_DISP_W, METER_DISP_H, METER_TRACK_COLOR, 0.85)
-      .setOrigin(originX, 0)
+      .rectangle(leftX, topY, METER_DISP_W, METER_DISP_H, METER_TRACK_COLOR, 0.9)
+      .setOrigin(0, 0)
       .setStrokeStyle(1, 0x1e293b, 1);
     this.root.add(track);
 
     const fill = this.scene.add
-      .rectangle(edgeX, topY, METER_DISP_W, METER_DISP_H, METER_FILL_COLOR, 1)
-      .setOrigin(originX, 0);
+      .rectangle(leftX, topY, METER_DISP_W, METER_DISP_H, METER_FILL_COLOR, 1)
+      .setOrigin(0, 0);
     this.root.add(fill);
 
-    if (side === 'left') {
+    const readyText = this.scene.add
+      .text(isLeft ? leftX + METER_DISP_W + 10 : leftX - 10, topY + METER_DISP_H / 2, 'SPECIAL READY', {
+        color: '#facc15',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '10px',
+        fontStyle: 'bold'
+      })
+      .setOrigin(isLeft ? 0 : 1, 0.5)
+      .setVisible(false);
+    this.root.add(readyText);
+
+    if (isLeft) {
       this.p1Meter = fill;
+      this.p1MeterReadyTxt = readyText;
       this.p1MeterGeom = geometry;
     } else {
       this.p2Meter = fill;
+      this.p2MeterReadyTxt = readyText;
       this.p2MeterGeom = geometry;
     }
   }
@@ -354,9 +390,10 @@ export class MatchHud {
         ? { anchorX: slotLeft, topY: slotTop, width: slotWidth, height: slotHeight, originX: 0 }
         : { anchorX: slotLeft + slotWidth, topY: slotTop, width: slotWidth, height: slotHeight, originX: 1 };
 
+    const ghostLeftX = side === 'left' ? geometry.anchorX : slotLeft;
     const ghost = this.scene.add
-      .rectangle(geometry.anchorX, geometry.topY, geometry.width, geometry.height, 0xfef08a, 0.88)
-      .setOrigin(geometry.originX, 0);
+      .rectangle(ghostLeftX, geometry.topY, geometry.width, geometry.height, 0xfef08a, 0.88)
+      .setOrigin(0, 0);
     this.root.add(ghost);
 
     const fill = this.scene.add
@@ -530,6 +567,73 @@ export class MatchHud {
     this.root.add(this.timerText);
   }
 
+  private buildArenaMinimap(centerX: number, topY: number): void {
+    const outerW = 240;
+    const outerH = 32;
+    const trackW = 220;
+    const trackH = 12;
+    this.minimapTrackWidth = trackW;
+    this.minimapTrackLeft = centerX - trackW / 2;
+    const trackY = topY + 18;
+
+    const frame = this.scene.add
+      .rectangle(centerX, topY + outerH / 2, outerW, outerH, 0x070d1b, 0.88)
+      .setStrokeStyle(1, 0x334155, 0.9)
+      .setOrigin(0.5);
+
+    const caption = this.scene.add
+      .text(centerX, topY + 7, 'ARENA 5X MAP', {
+        color: '#94a3b8',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '8px',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5);
+
+    const track = this.scene.add
+      .rectangle(this.minimapTrackLeft, trackY, trackW, trackH, 0x0f172a, 0.95)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x1e293b, 1);
+
+    this.root.add([frame, caption, track]);
+
+    for (let seg = 1; seg < 5; seg += 1) {
+      const tickX = this.minimapTrackLeft + (trackW * seg) / 5;
+      const tick = this.scene.add.rectangle(tickX, trackY, 1, trackH - 2, 0x334155, 0.9).setOrigin(0.5);
+      this.root.add(tick);
+    }
+
+    this.minimapViewBox = this.scene.add
+      .rectangle(this.minimapTrackLeft, trackY, Math.round(trackW / 5), trackH, 0x38bdf8, 0.22)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0xfacc15, 0.78);
+
+    this.minimapP1Dot = this.scene.add
+      .circle(centerX - 10, trackY, 4.5, 0x38bdf8, 1)
+      .setStrokeStyle(1.5, 0xffffff, 0.95);
+    this.minimapP2Dot = this.scene.add
+      .circle(centerX + 10, trackY, 4.5, 0xf43f5e, 1)
+      .setStrokeStyle(1.5, 0xffffff, 0.95);
+
+    this.root.add([this.minimapViewBox, this.minimapP1Dot, this.minimapP2Dot]);
+  }
+
+  /**
+   * Updates fighter dots and visible camera window on the 5x Arena Minimap.
+   */
+  setArenaPositions(p1Frac: number, p2Frac: number, viewStartFrac: number, viewEndFrac: number): void {
+    const p1 = Phaser.Math.Clamp(p1Frac, 0, 1);
+    const p2 = Phaser.Math.Clamp(p2Frac, 0, 1);
+    const vStart = Phaser.Math.Clamp(viewStartFrac, 0, 1);
+    const vEnd = Phaser.Math.Clamp(viewEndFrac, vStart, 1);
+    const viewW = Math.max(8, Math.round((vEnd - vStart) * this.minimapTrackWidth));
+
+    this.minimapViewBox.x = this.minimapTrackLeft + vStart * this.minimapTrackWidth;
+    this.minimapViewBox.setDisplaySize(viewW, 12);
+    this.minimapP1Dot.x = this.minimapTrackLeft + p1 * this.minimapTrackWidth;
+    this.minimapP2Dot.x = this.minimapTrackLeft + p2 * this.minimapTrackWidth;
+  }
+
   /**
    * Advances trailing ghost health drain bars smoothly each frame.
    */
@@ -544,11 +648,14 @@ export class MatchHud {
         ? Math.max(this.p2Frac, this.p2GhostFrac - drainRate)
         : this.p2Frac;
 
+    const p1GhostW = Math.max(0, this.p1FillGeom.width * this.p1GhostFrac);
     this.p1GhostFill
-      .setDisplaySize(Math.max(0, this.p1FillGeom.width * this.p1GhostFrac), this.p1FillGeom.height)
+      .setDisplaySize(p1GhostW, this.p1FillGeom.height)
       .setVisible(this.p1GhostFrac > 0);
+    const p2GhostW = Math.max(0, this.p2FillGeom.width * this.p2GhostFrac);
     this.p2GhostFill
-      .setDisplaySize(Math.max(0, this.p2FillGeom.width * this.p2GhostFrac), this.p2FillGeom.height)
+      .setPosition(this.p2FillGeom.anchorX - p2GhostW, this.p2FillGeom.topY)
+      .setDisplaySize(p2GhostW, this.p2FillGeom.height)
       .setVisible(this.p2GhostFrac > 0);
   }
 
@@ -596,9 +703,12 @@ export class MatchHud {
   setGuard(side: 'left' | 'right', guard01: number, guardBroken: boolean): void {
     const clamped = Phaser.Math.Clamp(guard01, 0, 1);
     const fill = side === 'left' ? this.p1GuardFill : this.p2GuardFill;
+    const leftX = side === 'left' ? this.p1GuardLeftX : this.p2GuardLeftX;
     const label = side === 'left' ? this.p1GuardLabel : this.p2GuardLabel;
+    const fillW = Math.max(0, GUARD_BAR_W * clamped);
 
-    fill.setDisplaySize(Math.max(0, GUARD_BAR_W * clamped), GUARD_BAR_H);
+    fill.setDisplaySize(fillW, GUARD_BAR_H);
+    fill.x = side === 'left' ? leftX : leftX + (GUARD_BAR_W - fillW);
     fill.setVisible(clamped > 0);
 
     if (guardBroken) {
@@ -609,7 +719,7 @@ export class MatchHud {
       label.setText('GUARD').setColor('#fde047');
     } else {
       fill.setFillStyle(0x38bdf8, 1);
-      label.setText('GUARD').setColor('#94a3b8');
+      label.setText('GUARD').setColor('#cbd5e1');
     }
   }
 
@@ -674,8 +784,10 @@ export class MatchHud {
     const fill = side === 'left' ? this.p1Meter : this.p2Meter;
     const geometry = side === 'left' ? this.p1MeterGeom : this.p2MeterGeom;
     const ready = frac >= 1;
+    const width = Math.max(0, geometry.width * frac);
 
-    fill.setDisplaySize(Math.max(0, geometry.width * frac), geometry.height);
+    fill.setDisplaySize(width, geometry.height);
+    fill.x = geometry.anchorX + (side === 'right' ? geometry.width - width : 0);
     fill.setFillStyle(ready ? METER_READY_COLOR : METER_FILL_COLOR, 1);
     fill.setVisible(frac > 0);
     this.setMeterGlow(side, ready);
@@ -699,11 +811,14 @@ export class MatchHud {
     }
 
     const fill = side === 'left' ? this.p1Meter : this.p2Meter;
+    const readyTxt = side === 'left' ? this.p1MeterReadyTxt : this.p2MeterReadyTxt;
     const existing = side === 'left' ? this.p1MeterGlow : this.p2MeterGlow;
+
+    readyTxt.setVisible(active);
 
     if (active) {
       const tween = this.scene.tweens.add({
-        targets: fill,
+        targets: [fill, readyTxt],
         alpha: 0.45,
         duration: 320,
         yoyo: true,
@@ -721,6 +836,7 @@ export class MatchHud {
 
     existing?.stop();
     fill.setAlpha(1);
+    readyTxt.setAlpha(1);
 
     if (side === 'left') {
       this.p1MeterGlow = null;

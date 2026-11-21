@@ -12,8 +12,9 @@ import { getCharacterDefinition } from '../game/hero';
 import { MatchHud } from '../game/matchHud';
 import { getFighterMeta } from '../game/myFighters';
 import { ProjectileManager } from '../game/projectiles';
-import { getStageDefinition } from '../game/stageConfig';
+import { ARENA_WORLD_TILES, getArenaWorldLayout, getStageDefinition } from '../game/stageConfig';
 import { playSuperCutIn } from '../game/superCutIn';
+import { createGlassPanel } from '../game/ui';
 import { SCENE_KEYS, type AttackProfile, type MatchConfig } from '../game/types';
 import {
   StageAtmosphereEffect,
@@ -21,6 +22,7 @@ import {
   spawnGuardBreakBurst,
   spawnHinokamiFinisher,
   spawnHitSpark,
+  spawnImpactFlash,
   spawnParryShockwave,
   spawnPrisonRealmSeal,
   spawnSwordSlashArc,
@@ -35,6 +37,9 @@ const DEPTH_BACK = 5;
 
 const SPAWN_OFFSET_FRACTION = 0.18;
 const CAMERA_LERP = 0.14;
+const MIN_CAMERA_ZOOM = 0.56;
+const MAX_CAMERA_ZOOM = 1;
+const CAMERA_ZOOM_LERP = 0.12;
 
 const ROUNDS_TO_WIN = 2;
 const ROUND_SECONDS = 60;
@@ -90,7 +95,6 @@ export class MatchScene extends BaseScene {
   private spawnX1 = 0;
   private spawnX2 = 0;
   private stageWorldWidth = 0;
-  private maxScroll = 0;
 
   private hud!: MatchHud;
   private projectiles!: ProjectileManager;
@@ -371,24 +375,24 @@ export class MatchScene extends BaseScene {
 
   private resolveArenaSpecialHit(options: {
     owner: Fighter;
-    kind: 'beam' | 'domain' | 'meteor';
+    kind: 'beam' | 'domain' | 'meteor' | 'cavalry' | 'arrow-rain';
     rect: Phaser.Geom.Rectangle;
     profile: AttackProfile;
     impactX: number;
     impactY: number;
-  }): void {
+  }): boolean {
     if (this.phase !== 'fighting' || this.paused) {
-      return;
+      return false;
     }
 
     const defender = options.owner === this.p1 ? this.p2 : this.p1;
     if (defender.isDefeated) {
-      return;
+      return false;
     }
 
     const hurt = defender.getHurtRect();
     if (!hurt || !Phaser.Geom.Intersects.RectangleToRectangle(options.rect, hurt)) {
-      return;
+      return false;
     }
 
     const guard = defender.getGuardRect();
@@ -408,6 +412,7 @@ export class MatchScene extends BaseScene {
 
     this.hud.applyHealth(this.p1.health01, this.p2.health01);
     this.checkForKnockout();
+    return true;
   }
 
   private applyCombatExchange(
@@ -650,6 +655,10 @@ export class MatchScene extends BaseScene {
       } else if (profile.koVisual === 'meteor-crush') {
         this.koEndDelayMs = 1350;
         this.cameras.main.shake(340, 0.02);
+      } else if (profile.koVisual === 'arrow-rain') {
+        this.koEndDelayMs = 1350;
+        spawnImpactFlash(this, defender.x, defender.groundLineY - 72, 'gold', 88);
+        this.cameras.main.shake(320, 0.018);
       }
     }
   }
@@ -719,13 +728,61 @@ export class MatchScene extends BaseScene {
   private buildStage(): void {
     const cam = this.cameras.main;
     const stage = getStageDefinition(this.config.stageId);
-    const source = this.textures.get(stage.key).getSourceImage();
-    const scale = cam.height / (source.height || stage.height);
-    this.stageWorldWidth = (source.width || stage.width) * scale;
-    this.maxScroll = Math.max(0, this.stageWorldWidth - cam.width);
+    const worldLayout = getArenaWorldLayout(this.config.stageId, cam.width, cam.height, ARENA_WORLD_TILES);
+    this.stageWorldWidth = worldLayout.displayWidth;
 
-    this.add.image(0, 0, stage.key).setOrigin(0, 0).setScale(scale).setDepth(0);
-    cam.setBounds(0, 0, this.stageWorldWidth, cam.height);
+    const skyOverscanH = 680;
+    const floorOverscanH = 340;
+
+    for (let i = 0; i < worldLayout.tiles; i += 1) {
+      const tileX = i * worldLayout.tileWidth;
+      const mirrored = i % 2 === 1;
+      const tileW = worldLayout.tileWidth + 2;
+
+      // Seamless mirrored sky extension above y=0 so zoomed-out cameras never reveal void.
+      this.add
+        .image(tileX, 0, stage.key)
+        .setOrigin(0, 1)
+        .setDisplaySize(tileW, skyOverscanH)
+        .setFlipX(mirrored)
+        .setFlipY(true)
+        .setTint(0x64748b)
+        .setDepth(0);
+
+      // Main panoramic tile.
+      this.add
+        .image(tileX, 0, stage.key)
+        .setOrigin(0, 0)
+        .setDisplaySize(tileW, cam.height)
+        .setFlipX(mirrored)
+        .setDepth(0);
+
+      // Ground apron extension below y=height for zoomed-out framing.
+      this.add
+        .image(tileX, cam.height, stage.key)
+        .setOrigin(0, 0)
+        .setDisplaySize(tileW, floorOverscanH)
+        .setFlipX(mirrored)
+        .setFlipY(true)
+        .setTint(0x334155)
+        .setDepth(0);
+    }
+
+    this.add
+      .rectangle(this.stageWorldWidth / 2, -skyOverscanH / 2, this.stageWorldWidth, skyOverscanH, 0x020617, 0.52)
+      .setDepth(1);
+    this.add
+      .rectangle(
+        this.stageWorldWidth / 2,
+        cam.height + floorOverscanH / 2,
+        this.stageWorldWidth,
+        floorOverscanH,
+        0x030712,
+        0.65
+      )
+      .setDepth(1);
+
+    cam.setBounds(0, -skyOverscanH, this.stageWorldWidth, cam.height + skyOverscanH + floorOverscanH);
 
     this.atmosphere = new StageAtmosphereEffect(this, this.stageWorldWidth, cam.height, stage.atmosphere);
   }
@@ -775,16 +832,44 @@ export class MatchScene extends BaseScene {
   private updateCamera(snap: boolean): void {
     const cam = this.cameras.main;
     const viewWidth = cam.width;
+    const separation = Math.abs(this.p1.x - this.p2.x);
+    const desiredVisibleWidth = separation + 460;
+    const targetZoom = Phaser.Math.Clamp(
+      viewWidth / Math.max(viewWidth, desiredVisibleWidth),
+      MIN_CAMERA_ZOOM,
+      MAX_CAMERA_ZOOM
+    );
+    const zoom = snap ? targetZoom : Phaser.Math.Linear(cam.zoom, targetZoom, CAMERA_ZOOM_LERP);
+    cam.setZoom(zoom);
+
+    const halfVisW = viewWidth / 2 / zoom;
     const midpoint = (this.p1.x + this.p2.x) / 2;
-    const targetScroll = Phaser.Math.Clamp(midpoint - viewWidth / 2, 0, this.maxScroll);
-    const scrollX = snap ? targetScroll : Phaser.Math.Linear(cam.scrollX, targetScroll, CAMERA_LERP);
+    const minCenterX = halfVisW;
+    const maxCenterX = Math.max(halfVisW, this.stageWorldWidth - halfVisW);
+    const targetCenterX = Phaser.Math.Clamp(midpoint, minCenterX, maxCenterX);
+    const currentCenterX = cam.scrollX + viewWidth / 2;
+    const nextCenterX = snap ? targetCenterX : Phaser.Math.Linear(currentCenterX, targetCenterX, CAMERA_LERP);
+    const scrollX = nextCenterX - viewWidth / 2;
 
-    cam.setScroll(scrollX, 0);
+    const groundY = Math.round(cam.height * GROUND_FRACTION);
+    const scrollY = groundY - cam.height / 2 - (groundY - cam.height / 2) / zoom;
+    cam.setScroll(scrollX, scrollY);
 
-    const leftWall = scrollX + EDGE_MARGIN;
-    const rightWall = scrollX + viewWidth - EDGE_MARGIN;
+    const visLeft = nextCenterX - halfVisW;
+    const visRight = nextCenterX + halfVisW;
+    const leftWall = Math.max(EDGE_MARGIN, visLeft + EDGE_MARGIN);
+    const rightWall = Math.min(this.stageWorldWidth - EDGE_MARGIN, visRight - EDGE_MARGIN);
     this.p1.setHorizontalBounds(leftWall, rightWall);
     this.p2.setHorizontalBounds(leftWall, rightWall);
+
+    if (this.hud && this.stageWorldWidth > 0) {
+      this.hud.setArenaPositions(
+        this.p1.x / this.stageWorldWidth,
+        this.p2.x / this.stageWorldWidth,
+        visLeft / this.stageWorldWidth,
+        visRight / this.stageWorldWidth
+      );
+    }
   }
 
   private registerKeys(): void {
@@ -899,11 +984,17 @@ export class MatchScene extends BaseScene {
       .setDepth(OVERLAY_DEPTH)
       .setScrollFactor(0);
 
-    const card = this.add
-      .rectangle(centerX, centerY, 440, 380, 0x0b1222, 0.96)
-      .setStrokeStyle(2, 0x38bdf8, 0.9)
-      .setDepth(OVERLAY_DEPTH)
-      .setScrollFactor(0);
+    const card = createGlassPanel(this, {
+      x: centerX,
+      y: centerY,
+      width: 470,
+      height: 396,
+      borderColor: 0x38bdf8,
+      depth: OVERLAY_DEPTH,
+      fillAlpha: 0.94,
+      accentTopColor: 0x38bdf8,
+      scrollFactor: 0
+    });
 
     const heading = this.add
       .text(centerX, centerY - 142, 'PAUSED', {
@@ -1021,20 +1112,24 @@ export class MatchScene extends BaseScene {
   }
 
   private createControlsLegend(): void {
-    const { centerX, height } = this.cameras.main;
-    const p1 = 'P1: WASD • F light • G heavy • C block/parry • Q stance • V special';
+    const { centerX, width, height } = this.cameras.main;
+    const p1 = 'P1: WASD • F light • G heavy • Hold Back or C block/parry • Q stance • V special';
     const p2 =
       this.config.mode === '1vcpu'
         ? 'P2: CPU'
-        : 'P2: Arrows • , light • . heavy • / block/parry • K stance • L special';
+        : 'P2: Arrows • , light • . heavy • Hold Back or / block/parry • K stance • L special';
 
     this.add
-      .text(centerX, height - 20, `${p1}      ${p2}      Esc / P Pause`, {
+      .rectangle(centerX, height - 18, width, 36, 0x050a18, 0.8)
+      .setStrokeStyle(1, 0x1e293b, 0.85)
+      .setDepth(HUD_DEPTH - 1)
+      .setScrollFactor(0);
+
+    this.add
+      .text(centerX, height - 18, `${p1}      •      ${p2}      •      Esc / P Pause`, {
         color: '#cbd5e1',
-        fontFamily: '"Plus Jakarta Sans", sans-serif',
-        fontSize: '12px',
-        backgroundColor: 'rgba(2, 6, 23, 0.65)',
-        padding: { x: 12, y: 5 }
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: '12px'
       })
       .setOrigin(0.5)
       .setDepth(HUD_DEPTH)
@@ -1137,11 +1232,17 @@ export class MatchScene extends BaseScene {
       .setDepth(OVERLAY_DEPTH)
       .setScrollFactor(0);
 
-    const card = this.add
-      .rectangle(centerX, centerY, 540, 400, 0x0b1222, 0.96)
-      .setStrokeStyle(2, 0xfacc15, 0.9)
-      .setDepth(OVERLAY_DEPTH)
-      .setScrollFactor(0);
+    const card = createGlassPanel(this, {
+      x: centerX,
+      y: centerY,
+      width: 560,
+      height: 412,
+      borderColor: 0xfacc15,
+      depth: OVERLAY_DEPTH,
+      fillAlpha: 0.94,
+      accentTopColor: 0xfacc15,
+      scrollFactor: 0
+    });
 
     const title = this.add
       .text(centerX, centerY - 140, `${winnerName.toUpperCase()} WINS!`, {

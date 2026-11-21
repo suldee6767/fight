@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 
 import { AUDIO_KEYS, playAudioCue } from '../game/core/audio';
-import { createTextButton, type TextButton } from '../game/ui';
+import { createGlassPanel, createTextButton, type TextButton } from '../game/ui';
 import { DEFAULT_SETTINGS } from '../game/settings';
 import { SCENE_KEYS } from '../game/types';
 import { BaseScene } from './BaseScene';
@@ -36,30 +36,38 @@ export class SettingsScene extends BaseScene {
   create(): void {
     this.markActiveScene(SCENE_KEYS.Settings);
     this.cameras.main.setBackgroundColor(0x020617);
-    this.createHeading('Settings', '');
+    this.createHeading('Settings', 'Audio & Arena Preferences');
 
     const centerX = this.cameras.main.centerX;
     const camera = this.cameras.main;
-    const panel = this.add.image(centerX, camera.centerY, 'ui-panel');
-    panel.setDisplaySize(560, 460);
+    createGlassPanel(this, {
+      x: centerX,
+      y: camera.centerY + 18,
+      width: 560,
+      height: 492,
+      borderColor: 0x38bdf8,
+      accentTopColor: 0xfacc15,
+      depth: 2
+    });
 
     const valueStyle = {
-      color: '#cbd5e1',
-      fontFamily: 'monospace',
-      fontSize: '24px'
+      color: '#e2e8f0',
+      fontFamily: '"JetBrains Mono", monospace',
+      fontSize: '20px',
+      fontStyle: 'bold'
     };
 
-    this.sfxValue = this.add.text(centerX, 210, '', valueStyle).setOrigin(0.5);
-    this.musicValue = this.add.text(centerX, 250, '', valueStyle).setOrigin(0.5);
-    this.muteValue = this.add.text(centerX, 290, '', valueStyle).setOrigin(0.5);
+    this.sfxValue = this.add.text(centerX, 174, '', valueStyle).setOrigin(0.5).setDepth(5);
+    this.musicValue = this.add.text(centerX, 206, '', valueStyle).setOrigin(0.5).setDepth(5);
+    this.muteValue = this.add.text(centerX, 238, '', valueStyle).setOrigin(0.5).setDepth(5);
 
-    const buttonY = [305, 365, 425, 485, 545];
-    const wideButtonWidth = 320;
-    const halfButtonWidth = 150;
-    const buttonHeight = 58;
+    const buttonY = [296, 362, 428, 494, 560];
+    const wideButtonWidth = 340;
+    const halfButtonWidth = 160;
+    const buttonHeight = 52;
 
     this.sfxDownButton = createTextButton(this, {
-      x: centerX - 85,
+      x: centerX - 90,
       y: buttonY[0],
       width: halfButtonWidth,
       height: buttonHeight,
@@ -67,9 +75,10 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.changeVolume('sfx', -0.1),
       onHover: () => this.setSelection(0)
     });
+    this.sfxDownButton.group.setDepth(5);
 
     this.sfxUpButton = createTextButton(this, {
-      x: centerX + 85,
+      x: centerX + 90,
       y: buttonY[0],
       width: halfButtonWidth,
       height: buttonHeight,
@@ -77,9 +86,10 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.changeVolume('sfx', 0.1),
       onHover: () => this.setSelection(0)
     });
+    this.sfxUpButton.group.setDepth(5);
 
     this.musicDownButton = createTextButton(this, {
-      x: centerX - 85,
+      x: centerX - 90,
       y: buttonY[1],
       width: halfButtonWidth,
       height: buttonHeight,
@@ -87,9 +97,10 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.changeVolume('music', -0.1),
       onHover: () => this.setSelection(1)
     });
+    this.musicDownButton.group.setDepth(5);
 
     this.musicUpButton = createTextButton(this, {
-      x: centerX + 85,
+      x: centerX + 90,
       y: buttonY[1],
       width: halfButtonWidth,
       height: buttonHeight,
@@ -97,6 +108,7 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.changeVolume('music', 0.1),
       onHover: () => this.setSelection(1)
     });
+    this.musicUpButton.group.setDepth(5);
 
     this.muteButton = createTextButton(this, {
       x: centerX,
@@ -107,6 +119,7 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.toggleMute(),
       onHover: () => this.setSelection(2)
     });
+    this.muteButton.group.setDepth(5);
 
     this.resetButton = createTextButton(this, {
       x: centerX,
@@ -117,6 +130,7 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.app.settingsStore.setState(DEFAULT_SETTINGS),
       onHover: () => this.setSelection(3)
     });
+    this.resetButton.group.setDepth(5);
 
     this.backButton = createTextButton(this, {
       x: centerX,
@@ -127,6 +141,7 @@ export class SettingsScene extends BaseScene {
       onClick: () => this.goToMenu(),
       onHover: () => this.setSelection(4)
     });
+    this.backButton.group.setDepth(5);
 
     this.setSelection(0);
 

@@ -1,5 +1,45 @@
 import * as Phaser from 'phaser';
 
+export interface GlassPanelConfig {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor?: number;
+  fillAlpha?: number;
+  borderColor?: number;
+  borderAlpha?: number;
+  accentTopColor?: number;
+  depth?: number;
+  scrollFactor?: number;
+}
+
+export function createGlassPanel(scene: Phaser.Scene, config: GlassPanelConfig): Phaser.GameObjects.Container {
+  const depth = config.depth ?? 5;
+  const scroll = config.scrollFactor ?? 1;
+  const children: Phaser.GameObjects.GameObject[] = [];
+
+  const bg = scene.add
+    .rectangle(0, 0, config.width, config.height, config.fillColor ?? 0x091020, config.fillAlpha ?? 0.9)
+    .setStrokeStyle(2, config.borderColor ?? 0x1e293b, config.borderAlpha ?? 0.95)
+    .setOrigin(0.5);
+  children.push(bg);
+
+  const innerSheen = scene.add
+    .rectangle(0, -config.height / 2 + 12, config.width - 8, 18, 0xffffff, 0.03)
+    .setOrigin(0.5);
+  children.push(innerSheen);
+
+  if (config.accentTopColor !== undefined) {
+    const topBar = scene.add
+      .rectangle(0, -config.height / 2 + 1, Math.min(config.width - 24, 148), 3, config.accentTopColor, 0.98)
+      .setOrigin(0.5);
+    children.push(topBar);
+  }
+
+  return scene.add.container(config.x, config.y, children).setDepth(depth).setScrollFactor(scroll);
+}
+
 export interface TextButton {
   group: Phaser.GameObjects.Container;
   setSelected(selected: boolean): void;
@@ -12,28 +52,48 @@ interface TextButtonConfig {
   width: number;
   height: number;
   label: string;
+  accentColor?: number;
   onClick(): void;
   onHover?(): void;
 }
 
 export function createTextButton(scene: Phaser.Scene, config: TextButtonConfig): TextButton {
-  const background = scene.add.image(config.x, config.y, 'ui-button');
-  const label = scene.add.text(config.x, config.y, config.label, {
-    color: '#e2e8f0',
-    fontFamily: '"Barlow Condensed", "Plus Jakarta Sans", sans-serif',
-    fontSize: '26px',
-    fontStyle: 'bold'
-  });
+  const accent = config.accentColor ?? 0xfacc15;
 
-  background.setDisplaySize(config.width, config.height);
+  const background = scene.add
+    .rectangle(0, 0, config.width, config.height, 0x0b1222, 0.9)
+    .setStrokeStyle(2, 0x334155, 0.9);
+  const indicator = scene.add
+    .rectangle(-config.width / 2 + 6, 0, 5, config.height - 14, accent, 0.95)
+    .setOrigin(0.5)
+    .setVisible(false);
+  const label = scene.add
+    .text(0, 0, config.label, {
+      color: '#cbd5e1',
+      fontFamily: '"Barlow Condensed", "Plus Jakarta Sans", sans-serif',
+      fontSize: config.width < 200 ? '22px' : '24px',
+      fontStyle: 'bold'
+    })
+    .setOrigin(0.5);
+
   background.setInteractive({ useHandCursor: true });
-  label.setOrigin(0.5);
 
-  const group = scene.add.container(0, 0, [background, label]);
+  const group = scene.add.container(config.x, config.y, [background, indicator, label]);
 
   const setSelected = (selected: boolean): void => {
-    background.setTexture(selected ? 'ui-button-active' : 'ui-button');
-    label.setColor(selected ? '#ffffff' : '#cbd5e1');
+    background.setFillStyle(selected ? 0x13203b : 0x0b1222, selected ? 0.97 : 0.88);
+    background.setStrokeStyle(selected ? 2.5 : 1.5, selected ? accent : 0x334155, selected ? 1 : 0.85);
+    indicator.setVisible(selected);
+    label.setColor(selected ? '#facc15' : '#e2e8f0');
+
+    scene.tweens.killTweensOf(group);
+    scene.tweens.add({
+      targets: group,
+      scaleX: selected ? 1.03 : 1,
+      scaleY: selected ? 1.03 : 1,
+      duration: 130,
+      ease: 'Cubic.Out'
+    });
   };
 
   background.on('pointerover', () => {
@@ -49,6 +109,7 @@ export function createTextButton(scene: Phaser.Scene, config: TextButtonConfig):
     group,
     setSelected,
     destroy: () => {
+      scene.tweens.killTweensOf(group);
       group.destroy(true);
     }
   };
@@ -69,9 +130,12 @@ export interface SelectionCardConfig {
   height: number;
   title: string;
   subtitle?: string;
+  metaText?: string;
+  metaColor?: string;
   texture?: string;
   badge?: { text: string; color: number };
   rankBadge?: { text: string; color: number };
+  topAccentColor?: number;
   baseBorderColor?: number;
   /** Max width/height (px) for the card image; defaults to fitting the card cleanly. */
   imageMaxSize?: number;
@@ -81,27 +145,43 @@ export interface SelectionCardConfig {
   onHover?: () => void;
 }
 
-const CARD_BASE_STROKE = 0x334155;
+const CARD_BASE_STROKE = 0x26354d;
 
 /**
- * Create a selectable card: a framed panel with an optional aspect-fit image,
- * optional corner badge(s), title and subtitle, plus selection highlighting and
- * lock-in flash.
+ * Create a selectable arcade glass card with animated hover/select lift,
+ * top rank trim, aspect-fit portrait/stage socket, title, and clean metadata.
  */
 export function createSelectionCard(scene: Phaser.Scene, config: SelectionCardConfig): SelectionCard {
   const defaultStroke = config.baseBorderColor ?? CARD_BASE_STROKE;
-  const background = scene.add
-    .rectangle(0, 0, config.width, config.height, 0x0b1222, 0.94)
-    .setStrokeStyle(2, defaultStroke, 1);
+  const trimColor = config.topAccentColor ?? config.rankBadge?.color ?? config.baseBorderColor ?? 0x38bdf8;
 
-  const children: Phaser.GameObjects.GameObject[] = [background];
+  const background = scene.add
+    .rectangle(0, 0, config.width, config.height, 0x091020, 0.95)
+    .setStrokeStyle(2, defaultStroke, 0.92);
+
+  const topTrim = scene.add
+    .rectangle(0, -config.height / 2 + 2, config.width - 4, 3, trimColor, 0.96)
+    .setOrigin(0.5);
+
+  const children: Phaser.GameObjects.GameObject[] = [background, topTrim];
 
   const hasSubtitle = Boolean(config.subtitle);
-  const availW = Math.min(config.width - 18, config.imageMaxSize ?? config.width - 18);
-  const availH = Math.min(config.height - (hasSubtitle ? 64 : 46), config.imageMaxSize ?? config.height - (hasSubtitle ? 64 : 46));
+  const hasMeta = Boolean(config.metaText);
+  const availW = Math.min(config.width - 20, config.imageMaxSize ?? config.width - 20);
+  const availH = Math.min(
+    config.height - (hasSubtitle || hasMeta ? 64 : 46),
+    config.imageMaxSize ?? config.height - (hasSubtitle || hasMeta ? 64 : 46)
+  );
+  const imgY = config.imageOffsetY ?? (hasSubtitle || hasMeta ? -20 : -14);
 
   if (config.texture) {
-    const image = scene.add.image(0, config.imageOffsetY ?? (hasSubtitle ? -22 : -15), config.texture).setOrigin(0.5);
+    const framePad = scene.add
+      .rectangle(0, imgY, availW + 6, availH + 6, 0x040710, 0.85)
+      .setStrokeStyle(1, 0x1e293b, 0.9)
+      .setOrigin(0.5);
+    children.push(framePad);
+
+    const image = scene.add.image(0, imgY, config.texture).setOrigin(0.5);
     const srcW = image.width || availW;
     const srcH = image.height || availH;
     const scale = Math.min(availW / srcW, availH / srcH);
@@ -109,7 +189,7 @@ export function createSelectionCard(scene: Phaser.Scene, config: SelectionCardCo
     children.push(image);
   }
 
-  const badgeY = -config.height / 2 + 12;
+  const badgeY = -config.height / 2 + 14;
   if (config.badge && config.rankBadge) {
     const chipW = Math.min(68, Math.floor((config.width - 12) / 2));
     const leftX = -config.width / 2 + chipW / 2 + 4;
@@ -164,23 +244,34 @@ export function createSelectionCard(scene: Phaser.Scene, config: SelectionCardCo
     children.push(chipBg, chipTxt);
   }
 
-  const subtitleY = config.height / 2 - 15;
-  const titleY = hasSubtitle ? subtitleY - 21 : config.height / 2 - 20;
+  const bottomLineY = config.height / 2 - 15;
+  const titleY = hasSubtitle || hasMeta ? bottomLineY - 21 : config.height / 2 - 20;
 
   const title = scene.add
     .text(0, titleY, config.title, {
       color: '#f8fafc',
       fontFamily: '"Barlow Condensed", "Plus Jakarta Sans", sans-serif',
-      fontSize: config.width < 165 ? '17px' : config.width < 240 ? '20px' : '22px',
+      fontSize: config.width < 168 ? '18px' : config.width < 240 ? '21px' : '24px',
       fontStyle: 'bold',
       align: 'center'
     })
     .setOrigin(0.5);
   children.push(title);
 
-  if (config.subtitle) {
+  if (config.metaText) {
+    const metaLabel = scene.add
+      .text(0, bottomLineY, config.metaText.toUpperCase(), {
+        color: config.metaColor ?? '#94a3b8',
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: config.width < 175 ? '9.5px' : '11px',
+        fontStyle: 'bold',
+        align: 'center'
+      })
+      .setOrigin(0.5);
+    children.push(metaLabel);
+  } else if (config.subtitle) {
     const subtitle = scene.add
-      .text(0, subtitleY, config.subtitle, {
+      .text(0, bottomLineY, config.subtitle, {
         color: '#94a3b8',
         fontFamily: '"Plus Jakarta Sans", sans-serif',
         fontSize: config.width < 220 ? '11px' : '13px',
@@ -203,9 +294,17 @@ export function createSelectionCard(scene: Phaser.Scene, config: SelectionCardCo
 
   const setSelected = (selected: boolean, accent: number = 0x38bdf8): void => {
     background.setStrokeStyle(selected ? 3 : 2, selected ? accent : defaultStroke, selected ? 1 : 0.85);
-    background.setFillStyle(selected ? 0x13203b : 0x0b1222, 0.96);
-    container.setScale(selected ? 1.04 : 1);
+    background.setFillStyle(selected ? 0x13203b : 0x091020, 0.96);
     title.setColor(selected ? '#ffffff' : '#e2e8f0');
+
+    scene.tweens.killTweensOf(container);
+    scene.tweens.add({
+      targets: container,
+      scaleX: selected ? 1.05 : 1,
+      scaleY: selected ? 1.05 : 1,
+      duration: 140,
+      ease: 'Cubic.Out'
+    });
   };
 
   const setDimmed = (dimmed: boolean): void => {
@@ -234,6 +333,7 @@ export function createSelectionCard(scene: Phaser.Scene, config: SelectionCardCo
     setDimmed,
     flashLock,
     destroy: () => {
+      scene.tweens.killTweensOf(container);
       container.destroy(true);
     }
   };

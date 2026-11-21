@@ -62,23 +62,24 @@ export class ModeSelectScene extends BaseScene {
 
   private buildCards(): void {
     const { centerX, centerY } = this.cameras.main;
-    const cardWidth = 320;
-    const cardHeight = 260;
-    const gap = 60;
+    const cardWidth = 340;
+    const cardHeight = 276;
+    const gap = 56;
     const totalWidth = cardWidth * MODE_OPTIONS.length + gap * (MODE_OPTIONS.length - 1);
     const startX = centerX - totalWidth / 2 + cardWidth / 2;
 
     MODE_OPTIONS.forEach((option, index) => {
       const card = createSelectionCard(this, {
         x: startX + index * (cardWidth + gap),
-        y: centerY + 10,
+        y: centerY + 12,
         width: cardWidth,
         height: cardHeight,
         title: option.title,
         subtitle: option.subtitle,
+        topAccentColor: index === 0 ? 0xfacc15 : 0x38bdf8,
         texture: option.texture,
-        imageMaxSize: 168,
-        imageOffsetY: -46,
+        imageMaxSize: 172,
+        imageOffsetY: -44,
         onHover: () => this.setSelection(index),
         onClick: () => this.confirm(index)
       });

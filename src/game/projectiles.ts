@@ -40,7 +40,7 @@ const ORB_DEPTH = 40;
 
 const ORB_STYLE: Record<
   OrbColor,
-  { speed: number; radius: number; outer: number; inner: number; glow: number; beam?: boolean }
+  { speed: number; radius: number; outer: number; inner: number; glow: number; beam?: boolean; arrow?: boolean }
 > = {
   red: { speed: 640, radius: 26, outer: 0xef4444, inner: 0xfecaca, glow: 0xdc2626 },
   blue: { speed: 600, radius: 26, outer: 0x3b82f6, inner: 0xdbeafe, glow: 0x1d4ed8 },
@@ -50,7 +50,8 @@ const ORB_STYLE: Record<
   crimson: { speed: 780, radius: 24, outer: 0xe11d48, inner: 0xffe4e6, glow: 0x881337 },
   fire: { speed: 620, radius: 30, outer: 0xf97316, inner: 0xfef08a, glow: 0xb91c1c },
   magenta: { speed: 980, radius: 16, outer: 0xd946ef, inner: 0xfdf4ff, glow: 0xa21caf, beam: true },
-  cyan: { speed: 700, radius: 32, outer: 0x06b6d4, inner: 0xe0f2fe, glow: 0x0284c7 }
+  cyan: { speed: 700, radius: 32, outer: 0x06b6d4, inner: 0xe0f2fe, glow: 0x0284c7 },
+  arrow: { speed: 920, radius: 14, outer: 0xf59e0b, inner: 0xfef3c7, glow: 0xb45309, arrow: true }
 };
 
 /**
@@ -64,7 +65,7 @@ export class ProjectileManager {
     this.scene = scene;
   }
 
-  /** Spawns a glowing energy orb or piercing laser bolt flying in `facing`. */
+  /** Spawns a glowing energy orb, piercing laser bolt, or Mongol bow arrow flying in `facing`. */
   spawnOrb(options: OrbSpawnOptions): void {
     const style = ORB_STYLE[options.color];
     const radiusScale = options.radiusScale ?? 1;
@@ -74,7 +75,16 @@ export class ProjectileManager {
     let outerRing: Phaser.GameObjects.Shape;
     let core: Phaser.GameObjects.Shape;
 
-    if (style.beam) {
+    if (style.arrow) {
+      container.setScale(options.facing, 1);
+      const streak = this.scene.add.rectangle(-16, 0, 56, 6, 0xfef08a, 0.25);
+      const featherTop = this.scene.add.rectangle(-26, -3, 12, 3, 0xdc2626, 0.95);
+      const featherBot = this.scene.add.rectangle(-26, 3, 12, 3, 0xdc2626, 0.95);
+      outerRing = this.scene.add.rectangle(0, 0, 54, 4, 0xd97706, 1).setStrokeStyle(1, 0x78350f, 0.9);
+      const collar = this.scene.add.rectangle(18, 0, 6, 6, 0xfacc15, 1);
+      core = this.scene.add.triangle(28, 0, -6, -6, 10, 0, -6, 6, 0xe2e8f0, 1).setStrokeStyle(1, 0x94a3b8, 0.9);
+      container.add([streak, featherTop, featherBot, outerRing, collar, core]);
+    } else if (style.beam) {
       const halo = this.scene.add.rectangle(0, 0, 88, 22, style.glow, 0.35);
       outerRing = this.scene.add
         .rectangle(0, 0, 74, 12, style.outer, 0.92)

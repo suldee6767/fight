@@ -5,7 +5,7 @@ import { getSkillRankDefinition } from '../game/combatSystem';
 import { FIGHTER_CHARACTER_DEFINITIONS, type CharacterDefinition } from '../game/hero';
 import { getFighterMeta } from '../game/myFighters';
 import { TITLE_ARENA_BG_KEY } from '../game/stageConfig';
-import { createSelectionCard, type SelectionCard } from '../game/ui';
+import { createGlassPanel, createSelectionCard, type SelectionCard } from '../game/ui';
 import { SCENE_KEYS, type MatchMode } from '../game/types';
 import { BaseScene } from './BaseScene';
 
@@ -18,7 +18,7 @@ const P1_COLOR = 0x38bdf8;
 const P2_COLOR = 0xf43f5e;
 
 const HERO_IDS = ['gojo', 'tanjiro', 'naruto', 'goku', 'luffy', 'street-hero', 'bayasaa'];
-const VILLAIN_AND_CHALLENGER_IDS = ['sukuna', 'muzan', 'madara', 'frieza', 'red-brawler', 'jiujitsu-fighter'];
+const VILLAIN_AND_CHALLENGER_IDS = ['sukuna', 'muzan', 'madara', 'frieza', 'genghis-khan', 'red-brawler', 'jiujitsu-fighter'];
 
 const HERO_ROSTER = HERO_IDS.flatMap((id) =>
   FIGHTER_CHARACTER_DEFINITIONS.filter((character) => character.id === id)
@@ -28,9 +28,9 @@ const VILLAIN_ROSTER = VILLAIN_AND_CHALLENGER_IDS.flatMap((id) =>
 );
 const SELECTABLE_ROSTER: CharacterDefinition[] = [...HERO_ROSTER, ...VILLAIN_ROSTER];
 
-const CARD_WIDTH = 148;
-const CARD_HEIGHT = 164;
-const CARD_GAP = 16;
+const CARD_WIDTH = 158;
+const CARD_HEIGHT = 174;
+const CARD_GAP = 14;
 
 interface PlayerCursor {
   index: number;
@@ -115,7 +115,7 @@ export class CharacterSelectScene extends BaseScene {
     const { centerX } = this.cameras.main;
 
     this.add
-      .text(centerX, 108, 'HEROES', {
+      .text(centerX, 110, 'HEROES', {
         color: '#38bdf8',
         fontFamily: '"Barlow Condensed", sans-serif',
         fontSize: '18px',
@@ -125,7 +125,7 @@ export class CharacterSelectScene extends BaseScene {
 
     const row1Width = CARD_WIDTH * HERO_ROSTER.length + CARD_GAP * (HERO_ROSTER.length - 1);
     const row1StartX = centerX - row1Width / 2 + CARD_WIDTH / 2;
-    const row1Y = 200;
+    const row1Y = 205;
 
     HERO_ROSTER.forEach((character, i) => {
       const x = row1StartX + i * (CARD_WIDTH + CARD_GAP);
@@ -140,12 +140,13 @@ export class CharacterSelectScene extends BaseScene {
         width: CARD_WIDTH,
         height: CARD_HEIGHT,
         title: character.label,
+        metaText: `${meta.series}  ·  ${rankDef.label}`,
+        metaColor: rankDef.colorHex,
+        topAccentColor: rankDef.colorNum,
         texture: this.textures.exists(character.portrait.key) ? character.portrait.key : undefined,
-        badge: { text: meta.series, color: meta.accentColor },
-        rankBadge: { text: rankDef.label, color: rankDef.colorNum },
         baseBorderColor: rankDef.colorNum,
-        imageMaxSize: 98,
-        imageOffsetY: -6,
+        imageMaxSize: 106,
+        imageOffsetY: -18,
         onHover: () => this.hoverCard(index),
         onClick: () => this.clickCard(index)
       });
@@ -154,7 +155,7 @@ export class CharacterSelectScene extends BaseScene {
     });
 
     this.add
-      .text(centerX, 300, 'VILLAINS & RIVALS', {
+      .text(centerX, 304, 'VILLAINS & RIVALS', {
         color: '#f43f5e',
         fontFamily: '"Barlow Condensed", sans-serif',
         fontSize: '18px',
@@ -164,7 +165,7 @@ export class CharacterSelectScene extends BaseScene {
 
     const row2Width = CARD_WIDTH * VILLAIN_ROSTER.length + CARD_GAP * (VILLAIN_ROSTER.length - 1);
     const row2StartX = centerX - row2Width / 2 + CARD_WIDTH / 2;
-    const row2Y = 392;
+    const row2Y = 400;
 
     VILLAIN_ROSTER.forEach((character, i) => {
       const x = row2StartX + i * (CARD_WIDTH + CARD_GAP);
@@ -179,12 +180,13 @@ export class CharacterSelectScene extends BaseScene {
         width: CARD_WIDTH,
         height: CARD_HEIGHT,
         title: character.label,
+        metaText: `${meta.series}  ·  ${rankDef.label}`,
+        metaColor: rankDef.colorHex,
+        topAccentColor: rankDef.colorNum,
         texture: this.textures.exists(character.portrait.key) ? character.portrait.key : undefined,
-        badge: { text: meta.series, color: meta.accentColor },
-        rankBadge: { text: rankDef.label, color: rankDef.colorNum },
         baseBorderColor: rankDef.colorNum,
-        imageMaxSize: 98,
-        imageOffsetY: -6,
+        imageMaxSize: 106,
+        imageOffsetY: -18,
         onHover: () => this.hoverCard(index),
         onClick: () => this.clickCard(index)
       });
@@ -195,20 +197,29 @@ export class CharacterSelectScene extends BaseScene {
 
   private buildSpotlightPanel(): void {
     const { centerX } = this.cameras.main;
-    const panelY = 580;
-    const panelW = 1132;
-    const panelH = 160;
+    const panelY = 592;
+    const panelW = 1190;
+    const panelH = 166;
 
-    this.add
-      .rectangle(centerX, panelY, panelW, panelH, 0x0b1222, 0.94)
-      .setStrokeStyle(2, 0x334155, 1)
-      .setDepth(5);
+    createGlassPanel(this, {
+      x: centerX,
+      y: panelY,
+      width: panelW,
+      height: panelH,
+      fillAlpha: 0.94,
+      borderColor: 0x334155,
+      accentTopColor: 0xfacc15,
+      depth: 5
+    });
+
+    this.add.rectangle(centerX - 42, panelY, 1, panelH - 28, 0x1e293b, 0.9).setDepth(6);
+    this.add.rectangle(centerX + 42, panelY, 1, panelH - 28, 0x1e293b, 0.9).setDepth(6);
 
     this.add
       .text(centerX, panelY, 'VS', {
         color: '#facc15',
         fontFamily: '"Barlow Condensed", sans-serif',
-        fontSize: '40px',
+        fontSize: '42px',
         fontStyle: 'bold',
         stroke: '#020617',
         strokeThickness: 6
@@ -217,8 +228,13 @@ export class CharacterSelectScene extends BaseScene {
       .setDepth(8);
 
     // P1 left side
-    const p1LeftX = centerX - panelW / 2 + 138;
-    const p1Portrait = this.add.image(centerX - panelW / 2 + 72, panelY, '').setDepth(7).setFlipX(true);
+    const p1PortraitX = centerX - panelW / 2 + 76;
+    this.add
+      .rectangle(p1PortraitX, panelY, 118, 118, 0x040710, 0.9)
+      .setStrokeStyle(2, 0x38bdf8, 0.85)
+      .setDepth(6);
+    const p1LeftX = centerX - panelW / 2 + 150;
+    const p1Portrait = this.add.image(p1PortraitX, panelY, '').setDepth(7).setFlipX(true);
     const p1Tag = this.add
       .text(p1LeftX, panelY - 58, 'PLAYER 1', {
         color: '#38bdf8',
@@ -229,11 +245,11 @@ export class CharacterSelectScene extends BaseScene {
       .setOrigin(0, 0.5)
       .setDepth(7);
     const p1RankBg = this.add
-      .rectangle(p1LeftX + 180, panelY - 58, 78, 18, 0xfacc15, 0.95)
+      .rectangle(p1LeftX + 180, panelY - 58, 82, 18, 0xfacc15, 0.95)
       .setOrigin(0, 0.5)
       .setDepth(7);
     const p1RankText = this.add
-      .text(p1LeftX + 219, panelY - 58, 'MYTHIC', {
+      .text(p1LeftX + 221, panelY - 58, 'MYTHIC', {
         color: '#020617',
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: '10px',
@@ -299,8 +315,13 @@ export class CharacterSelectScene extends BaseScene {
     };
 
     // P2 right side
-    const p2RightX = centerX + panelW / 2 - 138;
-    const p2Portrait = this.add.image(centerX + panelW / 2 - 72, panelY, '').setDepth(7);
+    const p2PortraitX = centerX + panelW / 2 - 76;
+    this.add
+      .rectangle(p2PortraitX, panelY, 118, 118, 0x040710, 0.9)
+      .setStrokeStyle(2, 0xf43f5e, 0.85)
+      .setDepth(6);
+    const p2RightX = centerX + panelW / 2 - 150;
+    const p2Portrait = this.add.image(p2PortraitX, panelY, '').setDepth(7);
     const p2Tag = this.add
       .text(p2RightX, panelY - 58, this.mode === '1vcpu' ? 'CPU OPPONENT' : 'PLAYER 2', {
         color: '#f43f5e',
@@ -311,11 +332,11 @@ export class CharacterSelectScene extends BaseScene {
       .setOrigin(1, 0.5)
       .setDepth(7);
     const p2RankBg = this.add
-      .rectangle(p2RightX - 180, panelY - 58, 78, 18, 0xfacc15, 0.95)
+      .rectangle(p2RightX - 180, panelY - 58, 82, 18, 0xfacc15, 0.95)
       .setOrigin(1, 0.5)
       .setDepth(7);
     const p2RankText = this.add
-      .text(p2RightX - 219, panelY - 58, 'MYTHIC', {
+      .text(p2RightX - 221, panelY - 58, 'MYTHIC', {
         color: '#020617',
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: '10px',
@@ -441,7 +462,7 @@ export class CharacterSelectScene extends BaseScene {
       this.p1Spot.tag.setText(`PLAYER 1  •  ${meta.series.toUpperCase()}`);
       const p1RankX = this.p1Spot.tag.x + this.p1Spot.tag.width + 12;
       this.p1Spot.rankBg.setPosition(p1RankX, this.p1Spot.tag.y).setFillStyle(rankDef.colorNum, 0.96).setVisible(true);
-      this.p1Spot.rankText.setPosition(p1RankX + 39, this.p1Spot.tag.y).setText(rankDef.label).setVisible(true);
+      this.p1Spot.rankText.setPosition(p1RankX + 41, this.p1Spot.tag.y).setText(rankDef.label).setVisible(true);
       this.p1Spot.name.setText(p1Char.label.toUpperCase());
       this.p1Spot.special.setText(`SPECIAL: ${meta.specialName.toUpperCase()}`);
       this.p1Spot.summary.setText(meta.kitSummary);
@@ -474,7 +495,7 @@ export class CharacterSelectScene extends BaseScene {
       this.p2Spot.tag.setText(`${this.mode === '1vcpu' ? 'CPU' : 'PLAYER 2'}  •  ${meta.series.toUpperCase()}`);
       const p2RankX = this.p2Spot.tag.x - this.p2Spot.tag.width - 12;
       this.p2Spot.rankBg.setPosition(p2RankX, this.p2Spot.tag.y).setFillStyle(rankDef.colorNum, 0.96).setVisible(true);
-      this.p2Spot.rankText.setPosition(p2RankX - 39, this.p2Spot.tag.y).setText(rankDef.label).setVisible(true);
+      this.p2Spot.rankText.setPosition(p2RankX - 41, this.p2Spot.tag.y).setText(rankDef.label).setVisible(true);
       this.p2Spot.name.setText(p2Char.label.toUpperCase());
       this.p2Spot.special.setText(`SPECIAL: ${meta.specialName.toUpperCase()}`);
       this.p2Spot.summary.setText(meta.kitSummary);

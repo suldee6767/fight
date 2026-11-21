@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARENA_WORLD_TILES,
   STAGE_DEFINITIONS,
   STAGE_IMAGE_ASSETS,
   TITLE_ARENA_BG_KEY,
+  getArenaWorldLayout,
   getStageDefinition,
   getStageLayout
 } from './stageConfig';
@@ -25,12 +27,17 @@ describe('roster and stage configuration', () => {
       const layout = getStageLayout(stage.id, 1280, 720);
       expect(layout.displayWidth).toBeGreaterThanOrEqual(1280);
       expect(layout.displayHeight).toBe(720);
+
+      const worldLayout = getArenaWorldLayout(stage.id, 1280, 720);
+      expect(worldLayout.tiles).toBe(ARENA_WORLD_TILES);
+      expect(ARENA_WORLD_TILES).toBe(5);
+      expect(worldLayout.displayWidth).toBeGreaterThanOrEqual(1280 * 5);
     }
   });
 
-  it('registers all 14 fighter definitions with roster metadata, stats, and combat tuning', () => {
-    expect(FIGHTER_CHARACTER_DEFINITIONS).toHaveLength(14);
-    expect(MY_FIGHTERS).toHaveLength(10);
+  it('registers all 15 fighter definitions with roster metadata, stats, and combat tuning', () => {
+    expect(FIGHTER_CHARACTER_DEFINITIONS).toHaveLength(15);
+    expect(MY_FIGHTERS).toHaveLength(11);
 
     const stats = buildDefaultFighterStats();
     const combat = buildDefaultFighterCombat();
@@ -51,6 +58,9 @@ describe('roster and stage configuration', () => {
     expect(getFighterTraits('muzan').rushSpecial?.lifestealFraction).toBe(0.4);
     expect(getFighterTraits('madara').meteorSpecial?.damageFraction).toBe(0.78);
     expect(getFighterTraits('frieza').angledOrbSpecial?.color).toBe('fire');
+    expect(getFighterTraits('genghis-khan').projectileLight?.color).toBe('arrow');
+    expect(getFighterTraits('genghis-khan').cavalryHeavy).toBe(true);
+    expect(getFighterTraits('genghis-khan').khanHordeSpecial?.damageFraction).toBe(0.78);
   });
 
   it('validates skill ranks, stances, perfect parry, and guard break mechanics', async () => {
@@ -119,6 +129,24 @@ describe('roster and stage configuration', () => {
     expect(guardBreak.outcome).toBe('guard-break');
     expect(guardBreak.nextGuardHealth).toBe(0);
     expect(guardBreak.defenderStunMs).toBe(GUARD_BREAK_STUN_MS);
-    expect(GUARD_MAX).toBe(100);
+    expect(GUARD_BREAK_STUN_MS).toBe(1100);
+    expect(GUARD_MAX).toBe(140);
+
+    // Blocking a special with a full guard bar must not 1-shot guard-break
+    const specialBlocked = resolveStrikeExchange({
+      attackerStance: 'offense',
+      defenderStance: 'offense',
+      attackerBaseRank: 'golden',
+      defenderBaseRank: 'blue',
+      attackerLiveRank: 'golden',
+      attackKind: 'special',
+      baseDamage: 80,
+      defenderMaxHp: 100,
+      blocked: true,
+      parryActive: false,
+      defenderGuardHealth: GUARD_MAX
+    });
+    expect(specialBlocked.outcome).toBe('blocked');
+    expect(specialBlocked.nextGuardHealth).toBeGreaterThan(0);
   });
 });

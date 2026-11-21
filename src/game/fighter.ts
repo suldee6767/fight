@@ -26,11 +26,13 @@ import {
 import { playCombatSfx } from './core/audio';
 import {
   StunVisualEffect,
+  spawnCavalryCharge,
   spawnChargeAura,
   spawnComboCallout,
   spawnHollowPurpleCharge,
   spawnImpactFlash,
   spawnKamehamehaBeam,
+  spawnKhanHordeVolley,
   spawnMalevolentShrine,
   spawnStunPopText,
   spawnSwordSlashArc,
@@ -170,15 +172,15 @@ export interface FighterOptions {
     vy?: number;
     radiusScale?: number;
   }) => void;
-  /** Invoked when a stage-wide beam, domain cleave, or sky meteor resolves its strike window. */
+  /** Invoked when a stage-wide beam, domain cleave, meteor, cavalry charge, or arrow volley resolves its strike window. */
   onArenaSpecialHit?: (options: {
     owner: Fighter;
-    kind: 'beam' | 'domain' | 'meteor';
+    kind: 'beam' | 'domain' | 'meteor' | 'cavalry' | 'arrow-rain';
     rect: Phaser.Geom.Rectangle;
     profile: AttackProfile;
     impactX: number;
     impactY: number;
-  }) => void;
+  }) => boolean | void;
   /** Returns the opposing fighter's world x coordinate (used by leaping & rushing specials). */
   getOpponentX?: () => number;
 }
@@ -222,6 +224,7 @@ export class Fighter {
   private guardHealth = GUARD_MAX;
   private guardBroken = false;
   private wasBlocking = false;
+  private backBlockActive = false;
   private hitstunTimer = 0;
   private stunIsBlock = false;
   private stunBlockLow = false;
@@ -335,12 +338,14 @@ export class Fighter {
     return this.guardBroken;
   }
 
-  /** True while currently in a blocking pose. */
+  /** True while currently guarding (Hold Back or dedicated Block key). */
   get isBlocking(): boolean {
     return (
       !this.defeated &&
       !this.guardBroken &&
-      (this.currentAnimKey === this.actionKeys.blockHigh || this.currentAnimKey === this.actionKeys.blockLow)
+      (this.currentAnimKey === this.actionKeys.blockHigh ||
+        this.currentAnimKey === this.actionKeys.blockLow ||
+        this.backBlockActive)
     );
   }
 
@@ -682,14 +687,25 @@ export class Fighter {
   }
 
   /**
-   * The fighter's active guard box in world space — the current frame's `guard`
-   * rect, present only while a block pose is held (and the fighter isn't
-   * defeated). An attack is blocked when its hitbox overlaps this rect; null
-   * means the fighter isn't guarding and any connecting attack will hit.
+   * The fighter's active omnidirectional guard box in world space — wraps the
+   * full body hurtbox with generous overhead/cross-up padding whenever active
+   * guard (`C` / `/` OR Hold Back) is engaged.
    */
   getGuardRect(): Phaser.Geom.Rectangle | null {
-    if (this.defeated || this.guardBroken) {
+    if (!this.isBlocking) {
       return null;
+    }
+
+    const hurt = this.getHurtRect();
+    if (hurt) {
+      const padX = 24;
+      const padY = 22;
+      return new Phaser.Geom.Rectangle(
+        hurt.x - padX,
+        hurt.y - padY,
+        hurt.width + padX * 2,
+        hurt.height + padY * 2
+      );
     }
 
     const animation = this.currentAnimation();
@@ -766,6 +782,7 @@ export class Fighter {
     this.hitstunTimer = Math.max(this.hitstunTimer, BLOCKSTUN_SECONDS);
     this.stunIsBlock = true;
     this.stunBlockLow = this.currentAnimKey === this.actionKeys.blockLow;
+    this.backBlockActive = false;
     this.locked = false;
     this.leapSpecialActive = false;
     this.rushSpecialActive = false;
@@ -864,6 +881,7 @@ export class Fighter {
     this.guardHealth = GUARD_MAX;
     this.guardBroken = false;
     this.wasBlocking = false;
+    this.backBlockActive = false;
     this.knockbackVel = 0;
     this.attackConnected = true;
     this.attackActiveLast = false;
@@ -893,6 +911,7 @@ export class Fighter {
    */
   update(seconds: number, input: FighterInput): void {
     if (this.defeated) {
+      this.backBlockActive = false;
       this.stunVisual.setActive(false);
       this.polarityIndicator?.setVisible(false);
       this.stanceAura?.setVisible(false);
@@ -904,6 +923,7 @@ export class Fighter {
     }
 
     if (this.frozen) {
+      this.backBlockActive = false;
       this.stunVisual.setActive(false);
       this.playState(this.actionKeys.idle, true);
       this.refreshStanceAura();
@@ -924,17 +944,30 @@ export class Fighter {
       this.switchStance();
     }
 
+    const dir = this.horizontalDirection(input);
+    this.backBlockActive =
+      this.grounded &&
+      !this.locked &&
+      !this.guardBroken &&
+      this.hitstunTimer <= 0 &&
+      !input.block &&
+      !input.crouch &&
+      dir !== 0 &&
+      dir === -this.facing;
+
     if (input.block && !this.wasBlocking && !this.guardBroken && this.hitstunTimer <= 0 && !this.locked) {
       this.parryWindowTimer = getStanceModifiers(this.stance).parryWindowSeconds;
     }
     this.wasBlocking = input.block;
 
     if (!input.block && !this.guardBroken && this.guardHealth < GUARD_MAX) {
-      const regen = getStanceModifiers(this.stance).guardRegenPerSec * seconds;
-      this.guardHealth = Math.min(GUARD_MAX, this.guardHealth + regen);
+      const baseRegen = getStanceModifiers(this.stance).guardRegenPerSec;
+      const regenScale = this.backBlockActive ? (this.stance === 'defense' ? 0.35 : 0.2) : 1;
+      this.guardHealth = Math.min(GUARD_MAX, this.guardHealth + baseRegen * regenScale * seconds);
     }
 
     if (this.hitstunTimer > 0) {
+      this.backBlockActive = false;
       this.hitstunTimer = Math.max(0, this.hitstunTimer - seconds);
       this.applyKnockback(seconds);
       this.playState(
@@ -957,7 +990,7 @@ export class Fighter {
         this.currentAnimKey = '';
         if (this.guardBroken) {
           this.guardBroken = false;
-          this.guardHealth = Math.round(GUARD_MAX * 0.65);
+          this.guardHealth = Math.round(GUARD_MAX * 0.8);
         }
         if (this.electricStunActive) {
           this.electricStunActive = false;
@@ -1165,10 +1198,17 @@ export class Fighter {
     }
     const scale = this.appliedScale || this.stats().scale;
     const mod = getStanceModifiers(this.stance);
-    const pulse = this.isParryWindowActive ? 0.95 : 0.65;
+    const activeGuard = this.isBlocking;
+    const colorNum = this.guardBroken
+      ? 0xef4444
+      : this.isParryWindowActive || activeGuard
+        ? 0x38bdf8
+        : mod.colorNum;
+    const strokeAlpha = this.isParryWindowActive ? 0.98 : activeGuard ? 0.88 : 0.65;
+    const fillAlpha = this.isParryWindowActive ? 0.34 : activeGuard ? 0.24 : 0.14;
     this.stanceAura.setPosition(this.posX, this.groundY - SHADOW_FOOT_OFFSET * scale);
-    this.stanceAura.setStrokeStyle(this.isParryWindowActive ? 4 : 3, mod.colorNum, pulse);
-    this.stanceAura.setFillStyle(mod.colorNum, this.isParryWindowActive ? 0.28 : 0.14);
+    this.stanceAura.setStrokeStyle(this.isParryWindowActive || activeGuard ? 4 : 3, colorNum, strokeAlpha);
+    this.stanceAura.setFillStyle(colorNum, fillAlpha);
   }
 
   /**
@@ -1223,7 +1263,23 @@ export class Fighter {
         this.lightCooldownRemaining = traits.lightCooldownMs / 1000;
       }
       this.startOneShot(this.actionKeys.lightPunch);
-      if (traits.swordSlashStyle === 'water' || traits.swordSlashStyle === 'crimson') {
+      if (traits.projectileLight) {
+        const arrowColor = traits.projectileLight.color;
+        const profile = getAttackProfile(this.combat(), 'high');
+        playCombatSfx('arrow', this.app.settingsStore.getState());
+        this.scene.time.delayedCall(90, () => {
+          if (!this.defeated) {
+            this.onProjectileLaunch?.({
+              owner: this,
+              x: this.posX + this.facing * 52,
+              y: this.sprite.y - this.sprite.displayHeight * 0.58,
+              facing: this.facing,
+              color: arrowColor,
+              profile
+            });
+          }
+        });
+      } else if (traits.swordSlashStyle === 'water' || traits.swordSlashStyle === 'crimson') {
         const slashStyle = traits.swordSlashStyle === 'crimson' ? 'crimson' : 'light';
         this.scene.time.delayedCall(100, () => {
           if (!this.defeated && this.currentAnimKey === this.actionKeys.lightPunch) {
@@ -1241,7 +1297,34 @@ export class Fighter {
     }
     if (input.heavy) {
       this.startOneShot(this.actionKeys.heavy);
-      if (traits.projectileHeavy) {
+      if (traits.cavalryHeavy) {
+        const profile = getAttackProfile(this.combat(), 'low');
+        let cavalryHitResolved = false;
+        playCombatSfx('cavalry', this.app.settingsStore.getState());
+        this.scene.time.delayedCall(100, () => {
+          if (this.defeated) {
+            return;
+          }
+          spawnCavalryCharge(this.scene, this.posX + this.facing * 24, this.groundY, this.facing, (frontX, centerY) => {
+            if (this.defeated || cavalryHitResolved) {
+              return;
+            }
+            const rect = new Phaser.Geom.Rectangle(frontX - 110, this.groundY - 95, 220, 95);
+            if (
+              this.onArenaSpecialHit?.({
+                owner: this,
+                kind: 'cavalry',
+                rect,
+                profile,
+                impactX: frontX,
+                impactY: centerY
+              })
+            ) {
+              cavalryHitResolved = true;
+            }
+          });
+        });
+      } else if (traits.projectileHeavy) {
         const orbColor: OrbColor = traits.projectileColor ?? this.currentPolarity();
         const profile = getAttackProfile(this.combat(), 'low');
         profile.pullTowardAttacker = orbColor === 'blue';
@@ -1408,6 +1491,7 @@ export class Fighter {
    * @param animKey - The action animation key to play.
    */
   private startOneShot(animKey: string): void {
+    this.backBlockActive = false;
     this.locked = true;
     this.currentAnimKey = animKey;
     this.currentReverse = false;
@@ -1431,6 +1515,7 @@ export class Fighter {
    * hit window so the move lands a combo.
    */
   private startSpecial(): void {
+    this.backBlockActive = false;
     this.locked = true;
     this.meter = 0;
     this.currentReverse = false;
@@ -1583,6 +1668,32 @@ export class Fighter {
           profile,
           impactX: targetX,
           impactY: this.groundY - 110
+        });
+      });
+    } else if (traits.khanHordeSpecial) {
+      const khanConfig = traits.khanHordeSpecial;
+      const targetX = this.getOpponentX?.() ?? this.posX + this.facing * 260;
+      const profile = getAttackProfile(this.combat(), 'special');
+      profile.maxHealthFraction = khanConfig.damageFraction;
+      profile.knockback = 420;
+      profile.hitstun = 600;
+      profile.finisher = true;
+      profile.koVisual = 'arrow-rain';
+
+      playCombatSfx('cavalry', this.app.settingsStore.getState());
+      playCombatSfx('arrow', this.app.settingsStore.getState());
+      spawnKhanHordeVolley(this.scene, this.posX, this.groundY, this.facing, targetX, () => {
+        if (this.defeated) {
+          return;
+        }
+        const rect = new Phaser.Geom.Rectangle(targetX - 180, this.groundY - 260, 360, 260);
+        this.onArenaSpecialHit?.({
+          owner: this,
+          kind: 'arrow-rain',
+          rect,
+          profile,
+          impactX: targetX,
+          impactY: this.groundY - 80
         });
       });
     } else if (traits.meteorSpecial) {
@@ -1788,6 +1899,7 @@ export class Fighter {
 
   /** Launches a jump, playing the jump animation while physics drives the arc. */
   private startJump(): void {
+    this.backBlockActive = false;
     this.grounded = false;
     this.velocityY = -Math.abs(this.stats().jump);
     this.currentAnimKey = this.actionKeys.jump;

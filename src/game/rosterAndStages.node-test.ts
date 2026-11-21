@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ARENA_WORLD_TILES,
   STAGE_DEFINITIONS,
   STAGE_IMAGE_ASSETS,
   TITLE_ARENA_BG_KEY,
   clampStagePanSpeed,
   clampStageScroll,
+  getArenaWorldLayout,
   getStageDefinition,
   getStageLayout
 } from './stageConfig';
@@ -46,6 +48,11 @@ test('stage catalog includes all 8 panoramic stages and title arena backdrop', (
     assert.equal(layout.displayHeight, 720);
     assert.ok(layout.displayWidth >= 1280, `${stage.id} should cover 1280px width`);
     assert.ok(layout.maxScroll >= 0);
+
+    const worldLayout = getArenaWorldLayout(stage.id, 1280, 720);
+    assert.equal(ARENA_WORLD_TILES, 5);
+    assert.equal(worldLayout.tiles, 5);
+    assert.ok(worldLayout.displayWidth >= 1280 * 5, `${stage.id} 5x world should be at least 6400px`);
   }
 
   assert.equal(clampStageScroll(-20, 200), 0);
@@ -53,8 +60,8 @@ test('stage catalog includes all 8 panoramic stages and title arena backdrop', (
   assert.equal(clampStagePanSpeed(5), 20);
 });
 
-test('all 14 fighter definitions exist with complete roster metadata, stats, and combat kits', () => {
-  assert.equal(FIGHTER_CHARACTER_DEFINITIONS.length, 14);
+test('all 15 fighter definitions exist with complete roster metadata, stats, and combat kits', () => {
+  assert.equal(FIGHTER_CHARACTER_DEFINITIONS.length, 15);
 
   const expectedIds = [
     'gojo',
@@ -68,6 +75,7 @@ test('all 14 fighter definitions exist with complete roster metadata, stats, and
     'muzan',
     'madara',
     'frieza',
+    'genghis-khan',
     'red-brawler',
     'jiujitsu-fighter',
     'green-boxer'
@@ -85,7 +93,7 @@ test('all 14 fighter definitions exist with complete roster metadata, stats, and
     assert.ok(meta.kitSummary.length > 0);
   }
 
-  assert.equal(MY_FIGHTERS.length, 10);
+  assert.equal(MY_FIGHTERS.length, 11);
 
   const statsMap = buildDefaultFighterStats();
   const combatMap = buildDefaultFighterCombat();
@@ -145,6 +153,11 @@ test('custom anime fighter kits and special attack traits match design specs', (
   const frieza = getFighterTraits('frieza');
   assert.equal(frieza.projectileColor, 'magenta');
   assert.equal(frieza.angledOrbSpecial?.color, 'fire');
+
+  const khan = getFighterTraits('genghis-khan');
+  assert.equal(khan.projectileLight?.color, 'arrow');
+  assert.equal(khan.cavalryHeavy, true);
+  assert.equal(khan.khanHordeSpecial?.damageFraction, 0.78);
 
   const state = createDefaultFighterPlaygroundState();
   const gokuSpecial = getAttackProfile(getFighterCombat(state, 'goku'), 'special');
@@ -241,9 +254,9 @@ test('offensive/defensive stance system, skill ranks, parry, and guard break beh
   assert.equal(parry.damage, 0);
   assert.equal(parry.attackerStunMs, PARRY_STUN_MS);
   assert.equal(parry.defenderMeterGain, PARRY_METER_REWARD);
-  assert.equal(parry.nextGuardHealth, 78);
+  assert.equal(parry.nextGuardHealth, 84);
 
-  // Guard Break shatters shield, applies chip damage and 1800ms stun
+  // Guard Break shatters shield, applies chip damage and 1100ms stun
   const guardBreak = resolveStrikeExchange({
     attackerStance: 'offense',
     defenderStance: 'offense',
@@ -260,5 +273,24 @@ test('offensive/defensive stance system, skill ranks, parry, and guard break beh
   assert.equal(guardBreak.outcome, 'guard-break');
   assert.equal(guardBreak.nextGuardHealth, 0);
   assert.equal(guardBreak.defenderStunMs, GUARD_BREAK_STUN_MS);
+  assert.equal(GUARD_BREAK_STUN_MS, 1100);
+  assert.equal(GUARD_MAX, 140);
   assert.ok(guardBreak.damage > 0);
+
+  // Special attacks against a full guard bar cannot 1-shot guard-break
+  const blockedSpecial = resolveStrikeExchange({
+    attackerStance: 'offense',
+    defenderStance: 'offense',
+    attackerBaseRank: 'golden',
+    defenderBaseRank: 'blue',
+    attackerLiveRank: 'golden',
+    attackKind: 'special',
+    baseDamage: 80,
+    defenderMaxHp: 100,
+    blocked: true,
+    parryActive: false,
+    defenderGuardHealth: GUARD_MAX
+  });
+  assert.equal(blockedSpecial.outcome, 'blocked');
+  assert.ok(blockedSpecial.nextGuardHealth > 0);
 });

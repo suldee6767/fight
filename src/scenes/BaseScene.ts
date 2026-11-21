@@ -25,10 +25,10 @@ export abstract class BaseScene extends Phaser.Scene {
     const { centerX } = this.cameras.main;
 
     this.add
-      .text(centerX, 46, title, {
+      .text(centerX, 38, title.toUpperCase(), {
         color: '#f8fafc',
         fontFamily: '"Barlow Condensed", "Plus Jakarta Sans", sans-serif',
-        fontSize: '42px',
+        fontSize: '44px',
         fontStyle: 'bold',
         stroke: '#020617',
         strokeThickness: 6
@@ -36,12 +36,14 @@ export abstract class BaseScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(40);
 
+    this.add.rectangle(centerX, 64, 96, 3, 0xfacc15, 0.92).setOrigin(0.5).setDepth(40);
+
     if (subtitle) {
       this.add
         .text(centerX, 82, subtitle, {
-          color: '#94a3b8',
+          color: '#cbd5e1',
           fontFamily: '"Plus Jakarta Sans", sans-serif',
-          fontSize: '16px'
+          fontSize: '15px'
         })
         .setOrigin(0.5)
         .setDepth(40);
@@ -49,15 +51,19 @@ export abstract class BaseScene extends Phaser.Scene {
   }
 
   protected createFooterHint(text: string): void {
-    const { centerX, height } = this.cameras.main;
+    const { centerX, width, height } = this.cameras.main;
 
     this.add
-      .text(centerX, height - 24, text, {
+      .rectangle(centerX, height - 18, width, 36, 0x050914, 0.86)
+      .setStrokeStyle(1, 0x1e293b, 0.9)
+      .setOrigin(0.5)
+      .setDepth(99);
+
+    this.add
+      .text(centerX, height - 18, text, {
         color: '#cbd5e1',
         fontFamily: '"Plus Jakarta Sans", sans-serif',
-        fontSize: '14px',
-        backgroundColor: 'rgba(2, 6, 23, 0.55)',
-        padding: { x: 12, y: 4 }
+        fontSize: '13px'
       })
       .setOrigin(0.5)
       .setDepth(100);

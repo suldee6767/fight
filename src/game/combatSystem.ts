@@ -30,8 +30,8 @@ export interface StanceModifiers {
   parryWindowSeconds: number;
 }
 
-export const GUARD_MAX = 100;
-export const GUARD_BREAK_STUN_MS = 1800;
+export const GUARD_MAX = 140;
+export const GUARD_BREAK_STUN_MS = 1100;
 export const PARRY_STUN_MS = 950;
 export const PARRY_METER_REWARD = 22;
 export const STANCE_SWITCH_COOLDOWN_SEC = 0.45;
@@ -87,9 +87,9 @@ export const STANCE_MODIFIERS: Record<CombatStance, StanceModifiers> = {
     damageOutMultiplier: 1.25,
     damageInMultiplier: 1.12,
     meterGainMultiplier: 1.3,
-    guardShredMultiplier: 1.45,
-    guardRegenPerSec: 8,
-    parryWindowSeconds: 0.16
+    guardShredMultiplier: 1.3,
+    guardRegenPerSec: 14,
+    parryWindowSeconds: 0.2
   },
   defense: {
     stance: 'defense',
@@ -101,8 +101,8 @@ export const STANCE_MODIFIERS: Record<CombatStance, StanceModifiers> = {
     damageInMultiplier: 0.72,
     meterGainMultiplier: 1.0,
     guardShredMultiplier: 0.85,
-    guardRegenPerSec: 18,
-    parryWindowSeconds: 0.24
+    guardRegenPerSec: 28,
+    parryWindowSeconds: 0.3
   }
 };
 
@@ -192,7 +192,7 @@ export function resolveStrikeExchange(input: StrikeResolutionInput): StrikeResol
     return {
       outcome: 'parried',
       damage: 0,
-      nextGuardHealth: Math.min(GUARD_MAX, input.defenderGuardHealth + 18),
+      nextGuardHealth: Math.min(GUARD_MAX, input.defenderGuardHealth + 24),
       attackerStunMs: PARRY_STUN_MS,
       defenderStunMs: 0,
       attackerMeterGain: 0,
@@ -201,20 +201,20 @@ export function resolveStrikeExchange(input: StrikeResolutionInput): StrikeResol
   }
 
   if (input.blocked) {
-    const baseGuardCost = input.attackKind === 'special' ? 44 : input.attackKind === 'low' ? 28 : 14;
-    const defenseResistance = input.defenderStance === 'defense' ? 1.35 : 1;
+    const baseGuardCost = input.attackKind === 'special' ? 30 : input.attackKind === 'low' ? 18 : 10;
+    const defenseResistance = input.defenderStance === 'defense' ? 1.45 : 1;
     const guardDrain = Math.round((baseGuardCost * offMod.guardShredMultiplier) / defenseResistance);
     const nextGuard = Math.max(0, input.defenderGuardHealth - guardDrain);
 
     if (nextGuard <= 0) {
       return {
         outcome: 'guard-break',
-        damage: Math.max(1, Math.round(scaledDamage * 0.45)),
+        damage: Math.max(1, Math.round(scaledDamage * 0.2)),
         nextGuardHealth: 0,
         attackerStunMs: 0,
         defenderStunMs: GUARD_BREAK_STUN_MS,
-        attackerMeterGain: input.attackKind === 'special' ? 0 : Math.round(14 * offMod.meterGainMultiplier),
-        defenderMeterGain: 5
+        attackerMeterGain: input.attackKind === 'special' ? 0 : Math.round(12 * offMod.meterGainMultiplier),
+        defenderMeterGain: 8
       };
     }
 
@@ -225,7 +225,7 @@ export function resolveStrikeExchange(input: StrikeResolutionInput): StrikeResol
       attackerStunMs: 0,
       defenderStunMs: 140,
       attackerMeterGain: input.attackKind === 'special' ? 0 : Math.round(4 * offMod.meterGainMultiplier),
-      defenderMeterGain: input.defenderStance === 'defense' ? 7 : 4
+      defenderMeterGain: input.defenderStance === 'defense' ? 9 : 5
     };
   }
 

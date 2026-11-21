@@ -174,6 +174,8 @@ export function getStageDefinition(stageId: string): StageDefinition {
  * @param viewportHeight - The game viewport height in pixels.
  * @returns The {@link StageLayout} for the stage at this viewport size.
  */
+export const ARENA_WORLD_TILES = 5;
+
 export function getStageLayout(
   stageId: string,
   viewportWidth: number,
@@ -185,6 +187,29 @@ export function getStageLayout(
 
   return {
     scale,
+    displayWidth,
+    displayHeight: viewportHeight,
+    maxScroll: Math.max(0, displayWidth - viewportWidth)
+  };
+}
+
+/**
+ * Computes the 5x seamless tiled arena layout used by MatchScene.
+ */
+export function getArenaWorldLayout(
+  stageId: string,
+  viewportWidth: number,
+  viewportHeight: number,
+  tiles = ARENA_WORLD_TILES
+): StageLayout & { tileWidth: number; tiles: number } {
+  const base = getStageLayout(stageId, viewportWidth, viewportHeight);
+  const displayWidth = Math.max(viewportWidth * tiles, base.displayWidth * tiles);
+  const tileWidth = displayWidth / tiles;
+
+  return {
+    scale: displayWidth / (getStageDefinition(stageId).width * tiles),
+    tileWidth,
+    tiles,
     displayWidth,
     displayHeight: viewportHeight,
     maxScroll: Math.max(0, displayWidth - viewportWidth)

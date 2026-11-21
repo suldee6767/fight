@@ -19,6 +19,10 @@ import {
   sliceRawSheet,
   type RawSheet
 } from './rawSheet';
+import {
+  MONGOL_CAVALRY_ANIM_KEY,
+  MONGOL_CAVALRY_TEXTURE_KEY
+} from './constants';
 import type { Rect } from './types';
 
 /**
@@ -31,6 +35,131 @@ import type { Rect } from './types';
 const SHEET_NAMES = ['idle', 'walk', 'punch', 'kick', 'hit', 'ko', 'jump', 'crouch', 'block', 'special'] as const;
 
 type SheetName = (typeof SHEET_NAMES)[number];
+
+/**
+ * Exact files shipped on disk for bundled `MY_FIGHTERS` so boot never spams
+ * hundreds of 404 probes for optional animations (crouch/block/jump).
+ * Custom fighters added later without an entry still probe all extensions.
+ */
+const BUILT_IN_FIGHTER_FILES: Record<string, Readonly<Record<string, string>>> = {
+  gojo: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  tanjiro: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  naruto: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  goku: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  luffy: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  'street-hero': {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png'
+  },
+  sukuna: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  muzan: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  madara: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  frieza: {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    jump: 'jump.png',
+    special: 'special.png',
+    portrait: 'portrait.jpg'
+  },
+  'genghis-khan': {
+    idle: 'idle.png',
+    walk: 'walk.png',
+    punch: 'punch.png',
+    kick: 'kick.png',
+    hit: 'hit.png',
+    ko: 'ko.png',
+    special: 'special.png',
+    cavalry: 'cavalry.png',
+    portrait: 'portrait.jpg'
+  }
+};
 
 interface ActionPlan {
   action: string;
@@ -153,19 +282,38 @@ export const MY_FIGHTER_IDS: string[] = MY_FIGHTER_CHARACTERS.map((character) =>
  * Load, slice and register every picture of the fighters in `myFighters.ts`.
  * Must finish before animations are registered.
  * @param scene - The boot scene (owner of the texture manager).
+ * @param onProgress - Optional progress callback invoked as each fighter finishes.
  */
-export async function prepareMyFighters(scene: Phaser.Scene): Promise<void> {
+export async function prepareMyFighters(
+  scene: Phaser.Scene,
+  onProgress?: (completed: number, total: number, fighterName: string) => void
+): Promise<void> {
   MY_FIGHTERS.filter((fighter) => !MY_FIGHTER_IDS.includes(fighter.id)).forEach((fighter) => {
     console.warn(`[my-fighter] "${fighter.id}" skipped: id must be lowercase english letters, numbers or "-"`);
   });
 
-  for (const character of MY_FIGHTER_CHARACTERS) {
-    const fighter = MY_FIGHTERS.find((candidate) => candidate.id === character.id);
+  const tasks = MY_FIGHTER_CHARACTERS.map((character) => ({
+    character,
+    fighter: MY_FIGHTERS.find((candidate) => candidate.id === character.id)
+  })).filter((entry): entry is { character: CharacterDefinition; fighter: MyFighter } => Boolean(entry.fighter));
 
-    if (fighter) {
+  const total = tasks.length;
+  let nextIndex = 0;
+  let completed = 0;
+  const workerCount = Math.min(4, Math.max(1, total));
+
+  const runWorker = async (): Promise<void> => {
+    while (nextIndex < total) {
+      const idx = nextIndex;
+      nextIndex += 1;
+      const { character, fighter } = tasks[idx];
       await prepareFighter(scene, character, fighter);
+      completed += 1;
+      onProgress?.(completed, total, fighter.name);
     }
-  }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 }
 
 async function prepareFighter(
@@ -174,13 +322,24 @@ async function prepareFighter(
   fighter: MyFighter
 ): Promise<void> {
   const root = `/assets/${fighter.id}`;
-  const urls = (name: string): string[] => EXTENSIONS.map((extension) => `${root}/${name}.${extension}`);
+  const knownFiles = BUILT_IN_FIGHTER_FILES[fighter.id];
+  const urls = (name: string): string[] => {
+    if (knownFiles) {
+      const knownFile = knownFiles[name];
+      return knownFile ? [`${root}/${knownFile}`] : [];
+    }
+    return EXTENSIONS.map((extension) => `${root}/${name}.${extension}`);
+  };
   const sheets = new Map<SheetName, RawSheet | null>();
 
   const getSheet = async (name: SheetName): Promise<RawSheet | null> => {
     if (!sheets.has(name)) {
-      const image = await loadFirstImage(urls(name));
-      const sheet = image ? sliceRawSheet(image, { flip: fighter.flip, frames: fighter.frames?.[name] }) : null;
+      const candidateUrls = urls(name);
+      const image = candidateUrls.length > 0 ? await loadFirstImage(candidateUrls) : null;
+      let sheet = image ? sliceRawSheet(image, { flip: fighter.flip, frames: fighter.frames?.[name] }) : null;
+      if (sheet && fighter.reverseSheets?.includes(name)) {
+        sheet = reverseRawSheet(sheet);
+      }
 
       sheets.set(name, sheet);
     }
@@ -245,12 +404,15 @@ async function prepareFighter(
         fighter.traits?.beamSpecial ||
         fighter.traits?.meteorSpecial ||
         fighter.traits?.domainSlashSpecial ||
-        fighter.traits?.angledOrbSpecial
+        fighter.traits?.angledOrbSpecial ||
+        fighter.traits?.khanHordeSpecial
     );
 
-    if (plan.action === 'light-punch' && fighter.traits?.doubleLightPunch && sheet.frames >= 5) {
+    if (plan.action === 'light-punch' && fighter.traits?.projectileLight) {
+      customActiveFrames = [];
+    } else if (plan.action === 'light-punch' && fighter.traits?.doubleLightPunch && sheet.frames >= 5) {
       customActiveFrames = [1, 3];
-    } else if (plan.action === 'heavy-kick' && fighter.traits?.projectileHeavy) {
+    } else if (plan.action === 'heavy-kick' && (fighter.traits?.projectileHeavy || fighter.traits?.cavalryHeavy)) {
       customActiveFrames = [];
     } else if (plan.action === 'special' && usesRangedSpecial) {
       customActiveFrames = [];
@@ -298,6 +460,28 @@ async function prepareFighter(
 
   if (!sheets.get('idle')) {
     console.warn(`[my-fighter] ${fighter.id}: public${root}/idle.png not found or has no pose in it`);
+  }
+
+  if (fighter.id === 'genghis-khan') {
+    const cavalryImg = await loadFirstImage(urls('cavalry'));
+    if (cavalryImg) {
+      const cavalrySheet = sliceRawSheet(cavalryImg, { flip: true, frames: 3 });
+      if (cavalrySheet) {
+        addSheetTexture(scene, MONGOL_CAVALRY_TEXTURE_KEY, cavalrySheet);
+        if (scene.anims.exists(MONGOL_CAVALRY_ANIM_KEY)) {
+          scene.anims.remove(MONGOL_CAVALRY_ANIM_KEY);
+        }
+        scene.anims.create({
+          key: MONGOL_CAVALRY_ANIM_KEY,
+          frames: scene.anims.generateFrameNumbers(MONGOL_CAVALRY_TEXTURE_KEY, {
+            start: 0,
+            end: cavalrySheet.frames - 1
+          }),
+          frameRate: 12,
+          repeat: -1
+        });
+      }
+    }
   }
 }
 
